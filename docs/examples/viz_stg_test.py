@@ -1,3 +1,8 @@
+"""
+This spript includes the basic implementation of the Superquadric Tensor Glyph
+using SDFs.
+"""
+
 import numpy as np
 
 from fury import actor, window
@@ -10,6 +15,7 @@ class Sphere:
 
 
 if __name__ == '__main__':
+    # Setup taken from test_actors.py test_tensor_slicer
     evals = np.array([1.4, .35, .35]) * 10 ** (-3)
     evecs = np.eye(3)
 
@@ -51,23 +57,43 @@ if __name__ == '__main__':
 
     centers = np.asarray(indices).T
 
-    valid_idx_dirs = mevecs[indices]
+    # It seems that a more standard parameter for glyph information would be
+    # Degrees of Freedom (DoF). According to this:
+    # https://en.wikipedia.org/wiki/Gordon_Kindlmann
 
-    valid_dirs = valid_idx_dirs[
-                 :, ~np.all(np.abs(valid_idx_dirs).max(axis=-1) == 0, axis=0),
-                 :]
+    dofs_vecs = mevecs[indices]
+    dofs_vals = mevals[indices]
+
+    #TODO: Get max eigenvalue for each voxel and use it as scale
+    #TODO: Get max eigenvec for each voxel and use it as direction and color
+    #max_vals = dofs_vals.max(axis=-1)
+    argmax_vals = dofs_vals.argmax(axis=-1)
+    max_vals = dofs_vals[np.arange(len(dofs_vals)), argmax_vals]
+    max_vecs = dofs_vecs[np.arange(len(dofs_vals)), argmax_vals, :]
 
     # SDF Superquadric Tensor Glyph setup
 
+    # Rectangle version
+
     # Box version
+
+    # Asymmetric box version
     box_centers = centers
     box_centers[:, 0] += 1
 
-    box_sd_stg_actor = actor.box(box_centers, scales=1)
+    box_sd_stg_actor = actor.box(box_centers, directions=max_vecs,
+                                 scales=max_vals)
+
+    # Symmetric box version
+
+    #TODO: Add symmetric box version
 
     # Billboard version
 
     #TODO: Add billboard version
+    # centers (N, 3)
+    # dof (N, 3, 4) ((x, y, z), eigenvalue)
+    # dof_vals (N, 3)
 
     # Scene setup
     scene = window.Scene()
