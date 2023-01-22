@@ -4,6 +4,7 @@ using SDFs.
 """
 
 import numpy as np
+import os
 
 from fury import actor, window
 from fury.actor import _color_fa, _fa
@@ -151,6 +152,48 @@ if __name__ == '__main__':
 
     shader_to_actor(box_sd_stg_actor, 'vertex', decl_code=vs_dec,
                     impl_code=vs_impl)
+
+    fs_vars_dec = \
+    """
+    in vec4 vertexMCVSOutput;
+    in vec3 centerMCVSOutput;
+    in vec3 directionVSOutput;
+    in float heightVSOutput;
+    in float radiusVSOutput;
+    
+    uniform mat4 MCVCMatrix;
+    """
+
+    vec_to_vec_rot_mat = import_fury_shader(os.path.join(
+        'utils', 'vec_to_vec_rot_mat.glsl'))
+
+    sd_cylinder = import_fury_shader(os.path.join('sdf', 'sd_cylinder.frag'))
+
+    sdf_map = \
+    """
+    float map(in vec3 position)
+    {
+        mat4 rot = vec2VecRotMat(normalize(directionVSOutput), 
+            normalize(vec3(0, 1, 0)));
+        vec3 pos = (rot * vec4(position - centerMCVSOutput, 0)).xyz;
+        return sdCylinder(pos, radiusVSOutput, heightVSOutput / 2);
+    }
+    """
+
+    central_diffs_normal = import_fury_shader(os.path.join(
+        'sdf', 'central_diffs.frag'))
+
+    cast_ray = import_fury_shader(os.path.join(
+        'ray_marching', 'cast_ray.frag'))
+
+    blinn_phong_model = import_fury_shader(os.path.join(
+        'lighting', 'blinn_phong_model.frag'))
+
+    fs_dec = compose_shader([fs_vars_dec, vec_to_vec_rot_mat, sd_cylinder,
+                             sdf_map, central_diffs_normal, cast_ray,
+                             blinn_phong_model])
+
+    shader_to_actor(box_sd_stg_actor, 'fragment', decl_code=fs_dec)
 
     # Scene setup
     scene = window.Scene()
