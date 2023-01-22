@@ -140,6 +140,18 @@ if __name__ == '__main__':
     out float radiusVSOutput;
     """
 
+    vs_impl = \
+    """
+    vertexMCVSOutput = vertexMC;
+    centerMCVSOutput = center;
+    directionVSOutput = direction;
+    heightVSOutput = height;
+    radiusVSOutput = radius;
+    """
+
+    shader_to_actor(box_sd_stg_actor, 'vertex', decl_code=vs_dec,
+                    impl_code=vs_impl)
+
     # Scene setup
     scene = window.Scene()
 
