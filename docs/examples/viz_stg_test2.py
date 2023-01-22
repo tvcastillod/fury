@@ -195,6 +195,43 @@ if __name__ == '__main__':
 
     shader_to_actor(box_sd_stg_actor, 'fragment', decl_code=fs_dec)
 
+    sdf_frag_impl = \
+    """
+    vec3 pnt = vertexMCVSOutput.xyz;
+    
+    // Ray Origin
+    // Camera position in world space
+    vec3 ro = (-MCVCMatrix[3] * MCVCMatrix).xyz;
+    
+    // Ray Direction
+    vec3 rd = normalize(pnt - ro);
+    
+    // Light Direction
+    vec3 ld = normalize(ro - pnt);
+    
+    ro += pnt - ro;
+    
+    float t = castRay(ro, rd);
+    
+    if(t < 20)
+    {
+        vec3 pos = ro + t * rd;
+        vec3 normal = centralDiffsNormals(pos, .0001);
+        // Light Attenuation
+        float la = dot(ld, normal);
+        vec3 color = blinnPhongIllumModel(la, lightColor0, diffuseColor, 
+            specularPower, specularColor, ambientColor);
+        fragOutput0 = vec4(color, opacity);
+    }
+    else
+    {
+        discard;
+    }
+    """
+
+    shader_to_actor(box_sd_stg_actor, 'fragment', impl_code=sdf_frag_impl,
+                    block='light')
+
     # Scene setup
     scene = window.Scene()
 
