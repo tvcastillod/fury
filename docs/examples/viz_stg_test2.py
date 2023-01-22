@@ -8,6 +8,8 @@ import numpy as np
 from fury import actor, window
 from fury.actor import _color_fa, _fa
 from fury.primitive import prim_sphere
+from fury.shaders import (attribute_to_actor, compose_shader,
+                          import_fury_shader, shader_to_actor)
 
 
 class Sphere:
@@ -72,6 +74,7 @@ if __name__ == '__main__':
     indices = np.nonzero(valid_mask)
 
     centers = np.asarray(indices).T
+
     num_centers = centers.shape[0]
 
     # It seems that a more standard parameter for glyph information would be
@@ -101,16 +104,41 @@ if __name__ == '__main__':
 
     # Asymmetric box version
 
+    box_sd_stg_actor = actor.box(box_centers, directions=max_vecs,
+                                 colors=colors, scales=max_vals)
+
     # Symmetric box version
 
-    box_sd_stg_actor = actor.box(box_centers, colors=colors, scales=max_vals)
+    #box_sd_stg_actor = actor.box(box_centers, colors=colors, scales=max_vals)
+
+    big_centers = np.repeat(centers, 8, axis=0)
+    attribute_to_actor(box_sd_stg_actor, big_centers, 'center')
+
+    big_directions = np.repeat(max_vecs, 8, axis=0)
+    attribute_to_actor(box_sd_stg_actor, big_directions, 'direction')
+
+    big_heights = np.repeat(np.repeat(1, num_centers), 8, axis=0)
+    big_radii = np.repeat(np.repeat(.5, num_centers), 8, axis=0)
+    attribute_to_actor(box_sd_stg_actor, big_heights, 'height')
+    attribute_to_actor(box_sd_stg_actor, big_radii, 'radius')
 
     # Billboard version
 
     # TODO: Add billboard version
-    # centers (N, 3)
-    # dof (N, 3, 4) ((x, y, z), eigenvalue)
-    # dof_vals (N, 3)
+
+    vs_dec = \
+    """
+    in vec3 center;
+    in vec3 direction;
+    in float height;
+    in float radius;
+    
+    out vec4 vertexMCVSOutput;
+    out vec3 centerMCVSOutput;
+    out vec3 directionVSOutput;
+    out float heightVSOutput;
+    out float radiusVSOutput;
+    """
 
     # Scene setup
     scene = window.Scene()
