@@ -6,6 +6,7 @@ using SDFs.
 import numpy as np
 
 from fury import actor, window
+from fury.actor import _color_fa, _fa
 from fury.primitive import prim_sphere
 
 
@@ -57,6 +58,8 @@ if __name__ == '__main__':
 
     centers = np.asarray(indices).T
 
+    num_centers = centers.shape[0]
+
     # It seems that a more standard parameter for glyph information would be
     # Degrees of Freedom (DoF). According to this:
     # https://en.wikipedia.org/wiki/Gordon_Kindlmann
@@ -64,8 +67,10 @@ if __name__ == '__main__':
     dofs_vecs = mevecs[indices]
     dofs_vals = mevals[indices]
 
-    #TODO: Get max eigenvalue for each voxel and use it as scale
-    #TODO: Get max eigenvec for each voxel and use it as direction and color
+    colors = [_color_fa(_fa(dofs_vals[i, :]), dofs_vecs[i, ...])
+              for i in range(num_centers)]
+    colors = np.asarray(colors)
+
     #max_vals = dofs_vals.max(axis=-1)
     argmax_vals = dofs_vals.argmax(axis=-1)
     max_vals = dofs_vals[np.arange(len(dofs_vals)), argmax_vals]
@@ -77,12 +82,12 @@ if __name__ == '__main__':
 
     # Box version
 
-    # Asymmetric box version
     box_centers = centers
     box_centers[:, 0] += 1
 
+    # Asymmetric box version
     box_sd_stg_actor = actor.box(box_centers, directions=max_vecs,
-                                 scales=max_vals)
+                                 colors=colors, scales=max_vals)
 
     # Symmetric box version
 
