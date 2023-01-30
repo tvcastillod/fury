@@ -115,6 +115,9 @@ if __name__ == '__main__':
     big_centers = np.repeat(centers, 8, axis=0)
     attribute_to_actor(box_sd_stg_actor, big_centers, 'center')
 
+    big_scales = np.repeat(max_vals, 8, axis=0)
+    attribute_to_actor(box_sd_stg_actor, big_scales, 'scale')
+
     # Billboard version
 
     # TODO: Add billboard version
@@ -122,15 +125,18 @@ if __name__ == '__main__':
     vs_dec = \
         """
         in vec3 center;
+        in float scale;
     
         out vec4 vertexMCVSOutput;
         out vec3 centerMCVSOutput;
+        out float scaleVSOutput;
         """
 
     vs_impl = \
         """
         vertexMCVSOutput = vertexMC;
         centerMCVSOutput = center;
+        scaleVSOutput = scale;
         """
 
     shader_to_actor(box_sd_stg_actor, 'vertex', decl_code=vs_dec,
@@ -140,19 +146,22 @@ if __name__ == '__main__':
         """
         in vec4 vertexMCVSOutput;
         in vec3 centerMCVSOutput;
+        in float scaleVSOutput;
     
         uniform mat4 MCVCMatrix;
         """
 
     sd_sphere = import_fury_shader(os.path.join('sdf', 'sd_sphere.frag'))
 
-    # TODO: Fix scaling! It should be the same as max_vals = 1, not .5
+    # TODO: Fix scaling < 1
     sdf_map = \
         """
         float map(in vec3 position)
         {
             vec3 pos = position - centerMCVSOutput;
-            return sdSphere(pos, .5);
+            float scaleFac = scaleVSOutput / 2;
+            pos /= scaleFac;
+            return sdSphere(pos, 1);
         }
         """
 
