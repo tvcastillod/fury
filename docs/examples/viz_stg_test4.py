@@ -107,12 +107,12 @@ if __name__ == '__main__':
         """
         vec3 pnt = vertexMCVSOutput.xyz;
         //fragOutput0 = vec4(pnt, opacity);
-        //vec3 normVertexMC = pnt - centerMCVSOutput;
+        vec3 normVertexMC = pnt - centerMCVSOutput;
         //fragOutput0 = vec4(normVertexMC, opacity);
         //float scaleFac = scaleVSOutput / 2;
         //normVertexMC /= scaleFac;
         //fragOutput0 = vec4(normVertexMC, opacity);
-                
+        
         // Ray Origin
         // Camera position in world space
         vec3 ro = (-MCVCMatrix[3] * MCVCMatrix).xyz;
