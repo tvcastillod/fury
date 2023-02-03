@@ -118,6 +118,9 @@ if __name__ == '__main__':
     big_directions = np.repeat(max_vecs, 8, axis=0)
     attribute_to_actor(box_sd_stg_actor, big_directions, 'direction')
 
+    big_scales = np.repeat(max_vals, 8, axis=0)
+    attribute_to_actor(box_sd_stg_actor, big_scales, 'scale')
+
     big_heights = np.repeat(np.repeat(1, num_centers), 8, axis=0)
     big_radii = np.repeat(np.repeat(.5, num_centers), 8, axis=0)
     attribute_to_actor(box_sd_stg_actor, big_heights, 'height')
@@ -131,12 +134,14 @@ if __name__ == '__main__':
     """
     in vec3 center;
     in vec3 direction;
+    in float scale;
     in float height;
     in float radius;
     
     out vec4 vertexMCVSOutput;
     out vec3 centerMCVSOutput;
     out vec3 directionVSOutput;
+    out float scaleVSOutput;
     out float heightVSOutput;
     out float radiusVSOutput;
     """
@@ -146,6 +151,7 @@ if __name__ == '__main__':
     vertexMCVSOutput = vertexMC;
     centerMCVSOutput = center;
     directionVSOutput = direction;
+    scaleVSOutput = scale;
     heightVSOutput = height;
     radiusVSOutput = radius;
     """
@@ -158,6 +164,7 @@ if __name__ == '__main__':
     in vec4 vertexMCVSOutput;
     in vec3 centerMCVSOutput;
     in vec3 directionVSOutput;
+    in float scaleVSOutput;
     in float heightVSOutput;
     in float radiusVSOutput;
     
@@ -176,7 +183,9 @@ if __name__ == '__main__':
         mat4 rot = vec2VecRotMat(normalize(directionVSOutput), 
             normalize(vec3(0, 1, 0)));
         vec3 pos = (rot * vec4(position - centerMCVSOutput, 0)).xyz;
-        return sdCylinder(pos, radiusVSOutput, heightVSOutput / 2);
+        float scaleFac = scaleVSOutput / 2;
+        pos /= scaleFac;
+        return sdCylinder(pos, radiusVSOutput, heightVSOutput);
     }
     """
 
