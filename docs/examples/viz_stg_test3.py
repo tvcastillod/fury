@@ -118,6 +118,34 @@ if __name__ == '__main__':
     big_scales = np.repeat(max_vals, 8, axis=0)
     attribute_to_actor(box_sd_stg_actor, big_scales, 'scale')
 
+    evals = np.array([mevals[0][1][0], mevals[1][0][0],
+                      mevals[1][1][0], mevals[2][1][0]])
+    print("EIGEN VALUES ", evals)
+    big_values = np.repeat(np.array(evals, dtype=float), 8, axis=0)
+    attribute_to_actor(box_sd_stg_actor, big_values, 'evals')
+
+    eigenvecs = np.array([mevecs[0][1][0], mevecs[1][0][0],
+                          mevecs[1][1][0], mevecs[2][1][0]])
+    print("EIGEN VECTORS ", eigenvecs)
+
+    evec1 = np.array(
+        [mevecs[0][1][0][0], mevecs[1][0][0][0], mevecs[1][1][0][0],
+         mevecs[2][1][0][0]])
+    evec2 = np.array(
+        [mevecs[0][1][0][1], mevecs[1][0][0][1], mevecs[1][1][0][1],
+         mevecs[2][1][0][1]])
+    evec3 = np.array(
+        [mevecs[0][1][0][2], mevecs[1][0][0][2], mevecs[1][1][0][2],
+         mevecs[2][1][0][2]])
+    vector1 = actor.arrow(centers=box_centers, directions=evec1, colors=colors)
+    big_vectors_1 = np.repeat(evec1, 8, axis=0)
+    attribute_to_actor(box_sd_stg_actor, big_vectors_1, 'evec1')
+    vector2 = actor.arrow(centers=box_centers, directions=evec2, colors=colors)
+    big_vectors_2 = np.repeat(evec2, 8, axis=0)
+    attribute_to_actor(box_sd_stg_actor, big_vectors_2, 'evec2')
+    vector3 = actor.arrow(centers=box_centers, directions=evec3, colors=colors)
+    big_vectors_3 = np.repeat(evec3, 8, axis=0)
+    attribute_to_actor(box_sd_stg_actor, big_vectors_3, 'evec3')
     # Billboard version
 
     # TODO: Add billboard version
@@ -126,10 +154,18 @@ if __name__ == '__main__':
         """
         in vec3 center;
         in float scale;
+        in vec3 evals;
+        in vec3 evec1;
+        in vec3 evec2;
+        in vec3 evec3;
     
         out vec4 vertexMCVSOutput;
         out vec3 centerMCVSOutput;
         out float scaleVSOutput;
+        out vec3 evalsVSOutput;
+        out vec3 evec1VSOutput;
+        out vec3 evec2VSOutput;
+        out vec3 evec3VSOutput;
         """
 
     vs_impl = \
@@ -137,6 +173,10 @@ if __name__ == '__main__':
         vertexMCVSOutput = vertexMC;
         centerMCVSOutput = center;
         scaleVSOutput = scale;
+        evalsVSOutput = evals;
+        evec1VSOutput = evec1;
+        evec2VSOutput = evec2;
+        evec3VSOutput = evec3;
         """
 
     shader_to_actor(box_sd_stg_actor, 'vertex', decl_code=vs_dec,
@@ -147,6 +187,10 @@ if __name__ == '__main__':
         in vec4 vertexMCVSOutput;
         in vec3 centerMCVSOutput;
         in float scaleVSOutput;
+        in vec3 evalsVSOutput;
+        in vec3 evec1VSOutput;
+        in vec3 evec2VSOutput;
+        in vec3 evec3VSOutput;
     
         uniform mat4 MCVCMatrix;
         """
@@ -159,9 +203,21 @@ if __name__ == '__main__':
         float map(in vec3 position)
         {
             vec3 pos = position - centerMCVSOutput;
-            float scaleFac = scaleVSOutput / 2;
-            pos /= scaleFac;
-            return sdSphere(pos, 1);
+            vec3 e = evalsVSOutput.xyz;
+            vec3 v1 = evec1VSOutput.xyz;
+            vec3 v2 = evec2VSOutput.xyz;
+            vec3 v3 = evec3VSOutput.xyz;
+            mat3 R = mat3(v1.x, v2.x, v3.x,
+                          v1.y, v2.y, v3.y,
+                          v1.z, v2.z, v3.z);
+            mat3 R2 = mat3(v1.x, v1.y, v1.z,
+                          v2.x, v2.y, v2.z,
+                          v3.x, v3.y, v3.z);
+            mat3 T = mat3(1/e.x, 0.0, 0.0,
+                          0.0, 1/e.y, 0.0,
+                          0.0, 0.0, 1/e.z);
+            pos = (inverse(R)*T*R)*pos.xyz;
+            return sdSphere(pos, .5) * min(e.x, min(e.y, e.z));
         }
         """
 
@@ -216,9 +272,9 @@ if __name__ == '__main__':
 
     shader_to_actor(box_sd_stg_actor, 'fragment', impl_code=sdf_frag_impl,
                     block='light')
-
     # Scene setup
     scene = window.Scene()
+    scene.background((255, 255, 255))
 
     scene.add(tensor_actor)
     scene.add(peak_actor)
