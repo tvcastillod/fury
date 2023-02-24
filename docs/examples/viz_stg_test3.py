@@ -24,7 +24,6 @@ def generate_tensors():
     vecs01 = np.array([[.1, .6, -.8], [.6, .5, .5], [-.8, .6, .3]])
     vecs11 = np.array([[.7, .5, -.5], [0, -.7, -.7], [-.7, .6, -.5]])
     vecs21 = np.array([[.7, -.3, -.6], [.2, -.8, .6], [.7, .6, .5]])
-
     tensors_vecs = np.zeros((3, 2, 1, 3, 3))
 
     tensors_vecs[1, 0, 0, :, :] = vecs10
@@ -163,9 +162,7 @@ if __name__ == '__main__':
         out vec3 centerMCVSOutput;
         out float scaleVSOutput;
         out vec3 evalsVSOutput;
-        out vec3 evec1VSOutput;
-        out vec3 evec2VSOutput;
-        out vec3 evec3VSOutput;
+        out mat3 tensorMatrix;
         """
 
     vs_impl = \
@@ -173,10 +170,12 @@ if __name__ == '__main__':
         vertexMCVSOutput = vertexMC;
         centerMCVSOutput = center;
         scaleVSOutput = scale;
-        evalsVSOutput = evals;
-        evec1VSOutput = evec1;
-        evec2VSOutput = evec2;
-        evec3VSOutput = evec3;
+        evalsVSOutput = normalize(evals);
+        mat3 T = mat3(1/evalsVSOutput.x, 0.0, 0.0,
+                      0.0, 1/evalsVSOutput.y, 0.0,
+                      0.0, 0.0, 1/evalsVSOutput.z);
+        mat3 R = mat3(evec1, evec2, evec3);
+        tensorMatrix = inverse(R) * T * R;
         """
 
     shader_to_actor(box_sd_stg_actor, 'vertex', decl_code=vs_dec,
@@ -188,9 +187,7 @@ if __name__ == '__main__':
         in vec3 centerMCVSOutput;
         in float scaleVSOutput;
         in vec3 evalsVSOutput;
-        in vec3 evec1VSOutput;
-        in vec3 evec2VSOutput;
-        in vec3 evec3VSOutput;
+        in mat3 tensorMatrix;
     
         uniform mat4 MCVCMatrix;
         """
@@ -202,22 +199,8 @@ if __name__ == '__main__':
         """
         float map(in vec3 position)
         {
-            vec3 pos = position - centerMCVSOutput;
-            vec3 e = evalsVSOutput.xyz;
-            vec3 v1 = evec1VSOutput.xyz;
-            vec3 v2 = evec2VSOutput.xyz;
-            vec3 v3 = evec3VSOutput.xyz;
-            mat3 R = mat3(v1.x, v2.x, v3.x,
-                          v1.y, v2.y, v3.y,
-                          v1.z, v2.z, v3.z);
-            mat3 R2 = mat3(v1.x, v1.y, v1.z,
-                          v2.x, v2.y, v2.z,
-                          v3.x, v3.y, v3.z);
-            mat3 T = mat3(1/e.x, 0.0, 0.0,
-                          0.0, 1/e.y, 0.0,
-                          0.0, 0.0, 1/e.z);
-            pos = (inverse(R)*T*R)*pos.xyz;
-            return sdSphere(pos, .5) * min(e.x, min(e.y, e.z));
+            return sdSphere(tensorMatrix * (position - centerMCVSOutput), .5) 
+                * min(evalsVSOutput.x, min(evalsVSOutput.y, evalsVSOutput.z));
         }
         """
 
