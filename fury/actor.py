@@ -1,5 +1,5 @@
 """Module that provide actors to render."""
-
+import os
 import warnings
 from functools import partial
 
@@ -11,6 +11,7 @@ from fury.shaders import (add_shader_callback, attribute_to_actor,
 from fury import layout
 from fury.actors.odf_slicer import OdfSlicerActor
 from fury.actors.peak import PeakActor
+from fury.actors.ellipsoid import EllipsoidActor
 from fury.colormap import colormap_lookup_table
 from fury.deprecator import deprecated_params, deprecate_with_version
 from fury.io import load_image
@@ -847,6 +848,35 @@ def axes(scale=(1, 1, 1), colorx=(1, 0, 0), colory=(0, 1, 0), colorz=(0, 0, 1),
     arrow_actor = arrow(centers, dirs, colors, scales, repeat_primitive=False)
     return arrow_actor
 
+
+def ellipsoid(axes=None, lengths=None, centers=None, scales=None, colors=None):
+    """
+    VTK actor for visualizing Ellipsoids.
+
+    Parameters
+    ----------
+    axes : ndarray (3, 3) or (N, 3, 3)
+        Axes of the ellipsoid
+    lengths : ndarray (3, ) or (N, 3)
+        Axes lengths
+    centers : ndarray(N, 3)
+        Ellipsoid positions
+    scales : int or ndarray (N, ), optional
+        Ellipsoid size, default(1)
+    colors : ndarray (N,3) or (N, 4) or tuple (3,) or tuple (4,), optional
+        RGB or RGBA (for opacity) R, G, B and A should be at the range [0, 1]
+    """
+
+    x, y, z = axes.shape
+    if scales is None:
+        scales = np.ones(x)
+    elif type(scales) == int:
+        scales = np.ones(x)*scales
+    if lengths is None:
+        values = np.array([np.linalg.norm(i) for i in axes.reshape((x * y, 3))])
+        lengths = values.reshape((x, y))
+
+    return EllipsoidActor(axes, lengths, centers, scales, colors).display()
 
 def odf_slicer(odfs, affine=None, mask=None, sphere=None, scale=0.5,
                norm=True, radial_scale=True, opacity=1.0, colormap=None,
