@@ -849,7 +849,8 @@ def axes(scale=(1, 1, 1), colorx=(1, 0, 0), colory=(0, 1, 0), colorz=(0, 0, 1),
     return arrow_actor
 
 
-def ellipsoid(axes=None, lengths=None, centers=None, scales=None, colors=None):
+def ellipsoid(axes=None, lengths=None, centers=None, scales=1, colors=None,
+              opacity=None):
     """
     VTK actor for visualizing Ellipsoids.
 
@@ -865,18 +866,27 @@ def ellipsoid(axes=None, lengths=None, centers=None, scales=None, colors=None):
         Ellipsoid size, default(1)
     colors : ndarray (N,3) or (N, 4) or tuple (3,) or tuple (4,), optional
         RGB or RGBA (for opacity) R, G, B and A should be at the range [0, 1]
+    opacity : float, optional
+        Takes values from 0 (fully transparent) to 1 (opaque).
     """
 
     x, y, z = axes.shape
-    if scales is None:
-        scales = np.ones(x)
-    elif type(scales) == int:
-        scales = np.ones(x)*scales
+    if not isinstance(scales, np.ndarray):
+        scales = np.array(scales)
+    if scales.size == 1:
+        scales = np.repeat(scales, x)
+    elif scales.size != x:
+        scales = np.concatenate((scales, np.ones(x-scales.size)), axis=None)
+
     if lengths is None:
-        values = np.array([np.linalg.norm(i) for i in axes.reshape((x * y, 3))])
+        values = np.array([np.linalg.norm(i) for i in axes.reshape((x*y, 3))])
         lengths = values.reshape((x, y))
 
-    return EllipsoidActor(axes, lengths, centers, scales, colors).display()
+    if opacity is None:
+        opacity = 1
+    elif colors.shape[1] == 4:
+        colors = colors[:, :-1]
+    return EllipsoidActor(axes, lengths, centers, scales, colors, opacity)
 
 def odf_slicer(odfs, affine=None, mask=None, sphere=None, scale=0.5,
                norm=True, radial_scale=True, opacity=1.0, colormap=None,

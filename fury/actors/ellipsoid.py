@@ -3,11 +3,12 @@ import os
 import numpy as np
 
 from fury import actor
+from fury.lib import Actor
 from fury.shaders import (attribute_to_actor, import_fury_shader,
                           shader_to_actor, compose_shader)
 
 
-class EllipsoidActor:
+class EllipsoidActor(Actor):
     """
     VTK actor for visualizing Ellipsoids.
 
@@ -23,37 +24,39 @@ class EllipsoidActor:
         Ellipsoid size, default(1)
     colors : ndarray (N,3) or (N, 4) or tuple (3,) or tuple (4,), optional
         RGB or RGBA (for opacity) R, G, B and A should be at the range [0, 1]
+    opacity : float, optional
+        Takes values from 0 (fully transparent) to 1 (opaque).
 
     """
-    def __init__(self, axes, lengths, centers, scales, colors):
+    def __init__(self, axes, lengths, centers, scales, colors, opacity):
         self.axes = axes
         self.lengths = lengths
         self.centers = centers
         self.scales = scales
         self.colors = colors
-
-    def display(self):
-        ellip_box = actor.box(self.centers, colors=self.colors, scales=1)
+        self.opacity = opacity
+        self.SetMapper(actor.box(self.centers, colors=self.colors, scales=1).GetMapper())
+        self.GetProperty().SetOpacity(self.opacity)
 
         big_centers = np.repeat(self.centers, 8, axis=0)
-        attribute_to_actor(ellip_box, big_centers, 'center')
+        attribute_to_actor(self, big_centers, 'center')
 
         big_scales = np.repeat(self.scales, 8, axis=0)
-        attribute_to_actor(ellip_box, big_scales, 'scale')
+        attribute_to_actor(self, big_scales, 'scale')
 
         big_values = np.repeat(np.array(self.lengths, dtype=float), 8, axis=0)
-        attribute_to_actor(ellip_box, big_values, 'evals')
+        attribute_to_actor(self, big_values, 'evals')
 
         evec1 = np.array([item[0] for item in self.axes])
         evec2 = np.array([item[1] for item in self.axes])
         evec3 = np.array([item[2] for item in self.axes])
 
         big_vectors_1 = np.repeat(evec1, 8, axis=0)
-        attribute_to_actor(ellip_box, big_vectors_1, 'evec1')
+        attribute_to_actor(self, big_vectors_1, 'evec1')
         big_vectors_2 = np.repeat(evec2, 8, axis=0)
-        attribute_to_actor(ellip_box, big_vectors_2, 'evec2')
+        attribute_to_actor(self, big_vectors_2, 'evec2')
         big_vectors_3 = np.repeat(evec3, 8, axis=0)
-        attribute_to_actor(ellip_box, big_vectors_3, 'evec3')
+        attribute_to_actor(self, big_vectors_3, 'evec3')
 
         vs_dec = \
             """
@@ -84,7 +87,7 @@ class EllipsoidActor:
             tensorMatrix = inverse(R) * T * R;
             """
 
-        shader_to_actor(ellip_box, 'vertex', decl_code=vs_dec,
+        shader_to_actor(self, 'vertex', decl_code=vs_dec,
                         impl_code=vs_impl)
 
         fs_vars_dec = \
@@ -123,7 +126,7 @@ class EllipsoidActor:
                                  central_diffs_normal, cast_ray,
                                  blinn_phong_model])
 
-        shader_to_actor(ellip_box, 'fragment', decl_code=fs_dec)
+        shader_to_actor(self, 'fragment', decl_code=fs_dec)
 
         sdf_frag_impl = \
             """
@@ -159,7 +162,5 @@ class EllipsoidActor:
             }
             """
 
-        shader_to_actor(ellip_box, 'fragment', impl_code=sdf_frag_impl,
+        shader_to_actor(self, 'fragment', impl_code=sdf_frag_impl,
                         block='light')
-
-        return ellip_box
