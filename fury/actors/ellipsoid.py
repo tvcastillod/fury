@@ -14,26 +14,29 @@ class EllipsoidActor(Actor):
 
     Parameters
     ----------
+    centers : ndarray(N, 3)
+        Ellipsoid positions
     axes : ndarray (3, 3) or (N, 3, 3)
         Axes of the ellipsoid
     lengths : ndarray (3, ) or (N, 3)
         Axes lengths
-    centers : ndarray(N, 3)
-        Ellipsoid positions
-    scales : int or ndarray (N, ), optional
-        Ellipsoid size, default(1)
     colors : ndarray (N,3) or (N, 4) or tuple (3,) or tuple (4,), optional
         RGB or RGBA (for opacity) R, G, B and A should be at the range [0, 1]
+    scales : int or ndarray (N, ), optional
+        Ellipsoid size, default(1)
     opacity : float, optional
         Takes values from 0 (fully transparent) to 1 (opaque).
+        If a value is given, each dot will have the same opacity otherwise
+        opacity is set to 1 by default, or is defined by Alpha parameter
+        in colors if given.
 
     """
-    def __init__(self, axes, lengths, centers, scales, colors, opacity):
+    def __init__(self, centers, axes, lengths, colors, scales, opacity):
+        self.centers = centers
         self.axes = axes
         self.lengths = lengths
-        self.centers = centers
-        self.scales = scales
         self.colors = colors
+        self.scales = scales
         self.opacity = opacity
         self.SetMapper(actor.box(self.centers, colors=self.colors, scales=1).GetMapper())
         self.GetProperty().SetOpacity(self.opacity)

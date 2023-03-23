@@ -113,8 +113,9 @@ if __name__ == '__main__':
                            mevals[1][1][0], mevals[2][1][0]])
     eigen_vecs = np.array([mevecs[0][1][0], mevecs[1][0][0],
                            mevecs[1][1][0], mevecs[2][1][0]])
-    box_sd_stg_actor = actor.ellipsoid(eigen_vecs, eigen_vals, box_centers,
-                                       max_vals, colors)
+    box_sd_stg_actor = actor.ellipsoid(axes=eigen_vecs, lengths=eigen_vals,
+                                       centers=box_centers, scales=max_vals,
+                                       colors=colors)
 
     # Scene setup
     scene = window.Scene()
