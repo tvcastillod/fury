@@ -849,8 +849,8 @@ def axes(scale=(1, 1, 1), colorx=(1, 0, 0), colory=(0, 1, 0), colorz=(0, 0, 1),
     return arrow_actor
 
 
-def ellipsoid(centers=None, axes=None, lengths=None, colors=None, scales=1,
-              opacity=None):
+def ellipsoid(centers=None, axes=None, lengths=None, colors=(1, 0, 0),
+              scales=1, opacity=None):
     """
     VTK actor for visualizing Ellipsoids.
 
