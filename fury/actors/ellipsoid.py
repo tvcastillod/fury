@@ -38,7 +38,9 @@ class EllipsoidActor(Actor):
         self.colors = colors
         self.scales = scales
         self.opacity = opacity
-        self.SetMapper(actor.box(self.centers, colors=self.colors, scales=1).GetMapper())
+        self.SetMapper(actor.box(self.centers, colors=self.colors,
+                                 scales=scales).GetMapper())
+        self.GetMapper().SetVBOShiftScaleMethod(False)
         self.GetProperty().SetOpacity(self.opacity)
 
         big_centers = np.repeat(self.centers, 8, axis=0)
@@ -82,7 +84,8 @@ class EllipsoidActor(Actor):
             vertexMCVSOutput = vertexMC;
             centerMCVSOutput = center;
             scaleVSOutput = scale;
-            evalsVSOutput = normalize(evals);
+            evalsVSOutput = evals/(max(evals.x, max(evals.y, evals.z)));
+            evalsVSOutput = clamp(evalsVSOutput,0.05,1);
             mat3 T = mat3(1/evalsVSOutput.x, 0.0, 0.0,
                           0.0, 1/evalsVSOutput.y, 0.0,
                           0.0, 0.0, 1/evalsVSOutput.z);
@@ -111,7 +114,7 @@ class EllipsoidActor(Actor):
             float map(in vec3 position)
             {
                 return sdSphere(tensorMatrix * (position - centerMCVSOutput), 
-                    scaleVSOutput*0.5) * min(evalsVSOutput.x,
+                    scaleVSOutput*0.48) * min(evalsVSOutput.x,
                     min(evalsVSOutput.y, evalsVSOutput.z));
             }
             """
