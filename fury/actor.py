@@ -12,6 +12,7 @@ from fury import layout
 from fury.actors.odf_slicer import OdfSlicerActor
 from fury.actors.peak import PeakActor
 from fury.actors.ellipsoid import EllipsoidActor
+from fury.actors.double_cone import DoubleConeActor
 from fury.colormap import colormap_lookup_table
 from fury.deprecator import deprecated_params, deprecate_with_version
 from fury.io import load_image
@@ -897,6 +898,38 @@ def ellipsoid(centers=None, axes=None, lengths=None, colors=(1, 0, 0),
         colors = colors[:, :-1]
 
     return EllipsoidActor(centers, axes, lengths, colors, scales, opacity)
+
+def doubleCone(centers=None, axes=None, lengths=None, angles=None,
+               colors=(1, 0, 0), scales=1, opacity=None):
+    """
+    VTK actor for visualizing Double cones.
+    """
+
+    if centers.ndim != 2:
+        centers = np.array([centers])
+        axes = np.array([axes])
+        lengths = np.array([lengths])
+        colors = np.array([colors])
+
+    x, y, z = axes.shape
+    if lengths is None:
+        values = np.array([np.linalg.norm(i) for i in axes.reshape((x*y, 3))])
+        lengths = values.reshape((x, y))
+
+    if not isinstance(scales, np.ndarray):
+        scales = np.array(scales)
+    if scales.size == 1:
+        scales = np.repeat(scales, x)
+    elif scales.size != x:
+        scales = np.concatenate((scales, np.ones(x-scales.size)), axis=None)
+
+    if opacity is None:
+        opacity = 1
+    elif colors.shape[1] == 4:
+        colors = colors[:, :-1]
+
+    return DoubleConeActor(centers, axes, lengths, angles, colors, scales,
+                           opacity)
 
 def odf_slicer(odfs, affine=None, mask=None, sphere=None, scale=0.5,
                norm=True, radial_scale=True, opacity=1.0, colormap=None,
