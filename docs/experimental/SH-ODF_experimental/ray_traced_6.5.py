@@ -7,7 +7,7 @@ import numpy as np
 from dipy.data.fetcher import dipy_home
 from dipy.io.image import load_nifti
 
-from fury import actor, window
+from fury import actor, ui, window
 from fury.lib import FloatArray, Texture
 from fury.shaders import (
     attribute_to_actor,
@@ -348,31 +348,31 @@ if __name__ == "__main__":
     #
     #   return A normalized surface normal pointing away from the origin.
     get_sh_glyph_normal = import_fury_shader(
-        os.path.join("rt_odfs", "get_sh_glyph_normal.frag")
+        os.path.join("ray_traced", "odf", "get_sh_glyph_normal.frag")
     )
 
     # Applies the non-linearity that maps linear RGB to sRGB
     linear_to_srgb = import_fury_shader(
-        os.path.join("rt_odfs", "linear_to_srgb.frag")
+        os.path.join("ray_traced", "odf", "linear_to_srgb.frag")
     )
 
     # Inverse of linear_to_srgb()
     srgb_to_linear = import_fury_shader(
-        os.path.join("rt_odfs", "srgb_to_linear.frag")
+        os.path.join("ray_traced", "odf", "srgb_to_linear.frag")
     )
 
     # Turns a linear RGB color (i.e. rec. 709) into sRGB
     linear_rgb_to_srgb = import_fury_shader(
-        os.path.join("rt_odfs", "linear_rgb_to_srgb.frag")
+        os.path.join("ray_traced", "odf", "linear_rgb_to_srgb.frag")
     )
 
     # Inverse of linear_rgb_to_srgb()
     srgb_to_linear_rgb = import_fury_shader(
-        os.path.join("rt_odfs", "srgb_to_linear_rgb.frag")
+        os.path.join("ray_traced", "odf", "srgb_to_linear_rgb.frag")
     )
 
     # Logarithmic tonemapping operator. Input and output are linear RGB.
-    tonemap = import_fury_shader(os.path.join("rt_odfs", "tonemap.frag"))
+    tonemap = import_fury_shader(os.path.join("ray_traced", "odf", "tonemap.frag"))
 
     # Blinn-Phong illumination model
     blinn_phong_model = import_fury_shader(
@@ -435,8 +435,8 @@ if __name__ == "__main__":
     first_intersection = """
     float first_ray_param = NO_INTERSECTION;
     _unroll_
-    for (int i = 0; i != MAX_DEGREE; ++i) {
-    //for (int i = 0; i != maxPolyDegreeVSOutput; ++i) {
+    //for (int i = 0; i != MAX_DEGREE; ++i) {
+    for (int i = 0; i != maxPolyDegreeVSOutput; ++i) {
         if (ray_params[i] != NO_INTERSECTION && ray_params[i] > 0.0) {
             first_ray_param = ray_params[i];
             break;
@@ -449,8 +449,8 @@ if __name__ == "__main__":
     vec3 color = vec3(1.);
     if (first_ray_param != NO_INTERSECTION) {
         vec3 intersection = ro - centerMCVSOutput + first_ray_param * rd;
-        vec3 normal = get_sh_glyph_normal(sh_coeffs, intersection);
-        vec3 colorDir = srgb_to_linear_rgb(abs(normalize(intersection)));
+        vec3 normal = getShGlyphNormal(sh_coeffs, intersection, int(numCoeffsVSOutput));
+        vec3 colorDir = srgbToLinearRgb(abs(normalize(intersection)));
         float attenuation = dot(ld, normal);
         color = blinnPhongIllumModel(
             //attenuation, lightColor0, diffuseColor, specularPower,
@@ -462,8 +462,8 @@ if __name__ == "__main__":
     """
 
     frag_output = """
-    //vec4 out_color = vec4(linear_rgb_to_srgb(tonemap(color)), 1.0);
-    vec3 out_color = linear_rgb_to_srgb(tonemap(color));
+    //vec4 out_color = vec4(linearRgbToSrgb(tonemap(color)), 1.0);
+    vec3 out_color = linearRgbToSrgb(tonemap(color));
     fragOutput0 = vec4(out_color, opacity);
     //fragOutput0 = vec4(color, opacity);
     """
