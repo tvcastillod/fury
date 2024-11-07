@@ -17,6 +17,70 @@ from fury.shaders import (
 )
 from fury.utils import numpy_to_vtk_image_data, set_polydata_tcoords
 
+def uv_calculations(n):
+    """Return UV coordinates based on the number of elements.
+
+    Parameters
+    ----------
+    n : int
+        number of elements.
+
+    Returns
+    -------
+    uvs : ndrray
+        UV coordinates for each element.
+
+    """
+    uvs = []
+    for i in range(0, n):
+        a = (n - (i + 1)) / n
+        b = (n - i) / n
+        uvs.extend(
+            [
+                [0.001, a + 0.001],
+                [0.001, b - 0.001],
+                [0.999, b - 0.001],
+                [0.999, a + 0.001],
+                [0.001, a + 0.001],
+                [0.001, b - 0.001],
+                [0.999, b - 0.001],
+                [0.999, a + 0.001],
+            ]
+        )
+    return uvs
+
+def minmax_norm(data, axis=1):
+    """Returns the min-max normalization of data along an axis.
+
+    Parameters
+    ----------
+    data: ndarray
+        2D array
+    axis: int, optional
+        axis for the function to be applied on
+
+    Returns
+    -------
+    output : ndarray
+
+    """
+
+    if not isinstance(data, np.ndarray):
+        data = np.array(data)
+    if data.ndim == 1:
+        data = np.array([data])
+    elif data.ndim > 2:
+        raise ValueError("the dimension of the array dimension must be 2.")
+
+    minimum = data.min(axis=axis)
+    maximum = data.max(axis=axis)
+    if np.array_equal(minimum, maximum):
+        return data
+    if axis == 0:
+        return (data - minimum) / (maximum - minimum)
+    if axis == 1:
+        return (data - minimum[:, None]) / (maximum - minimum)[:, None]
+
 if __name__ == "__main__":
     show_man = window.ShowManager(size=(1920, 1080))
     show_man.scene.background((1, 1, 1))
@@ -42,7 +106,7 @@ if __name__ == "__main__":
     # fmt: on
 
     centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0]])
-    scales = np.array([1, 2, 2])
+    scales = np.array([2, 2, 2])
 
     odf_actor = actor.box(centers=centers, scales=1.0)
 
@@ -58,26 +122,8 @@ if __name__ == "__main__":
 
     odf_actor_pd = odf_actor.GetMapper().GetInput()
 
-    # fmt: off
-    uv_vals = np.array(
-        [
-            [0, 2 / 3], [0, 1], [1, 1], [1, 2 / 3],
-            [0, 2 / 3], [0, 1], [1, 1], [1, 2 / 3],  # glyph1
-            [0, 1 / 3], [0, 2 / 3], [1, 2 / 3], [1, 1 / 3],
-            [0, 1 / 3], [0, 2 / 3], [1, 2 / 3], [1, 1 / 3],  # glyph2
-            [0, 0], [0, 1 / 3], [1, 1 / 3], [1, 0],
-            [0, 0], [0, 1 / 3], [1, 1 / 3], [1, 0]  # glyph3
-        ]
-    ) + [
-            [0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1],
-            [0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1], # glyph1
-            [0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1],
-            [0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1], # glyph2
-            [0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1],
-            [0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1] # glyph3
-        ]
-    # fmt: on
-
+    n_glyphs = coeffs.shape[0]
+    uv_vals = np.array(uv_calculations(n_glyphs))
     num_pnts = uv_vals.shape[0]
 
     t_coords = FloatArray()
@@ -87,17 +133,7 @@ if __name__ == "__main__":
 
     set_polydata_tcoords(odf_actor_pd, t_coords)
 
-    min = coeffs.min(axis=1)
-    max = coeffs.max(axis=1)
-    newmin = 0
-    newmax = 1
-    arr = np.array(
-        [
-            (coeffs[i] - min[i]) * ((newmax - newmin) / (max[i] - min[i]))
-            + newmin
-            for i in range(coeffs.shape[0])
-        ]
-    )
+    arr = minmax_norm(coeffs)
     arr *= 255
     grid = numpy_to_vtk_image_data(arr.astype(np.uint8))
 
@@ -404,7 +440,7 @@ if __name__ == "__main__":
     sphere = get_sphere("repulsion724")
 
     sh_basis = "descoteaux07"
-    sh_basis = "tournier07"
+    #sh_basis = "tournier07"
     sh_order = 4
 
     sh = np.zeros((3, 1, 1, 15))
@@ -413,7 +449,7 @@ if __name__ == "__main__":
     sh[2, 0, 0, :] = coeffs[2, :]
 
     tensor_sf = sh_to_sf(
-        sh, sh_order=sh_order, basis_type=sh_basis, sphere=sphere, legacy=False
+        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
     )
 
     odf_slicer_actor = actor.odf_slicer(
