@@ -101,12 +101,19 @@ if __name__ == "__main__":
             0.28208936, -0.13133252, -0.04701012, -0.06303016, -0.0468775,
             0.02348355, 0.03991898, 0.02587433, 0.02645416, 0.00668765,
             0.00890633, 0.02189304, 0.00387415, 0.01665629, -0.01427194
+        ],
+        [
+            -0.2739740312099, 0.2526670396328, 1.8922271728516,
+            0.2878578901291, -0.5339795947075, -0.2620058953762,
+            0.1580424904823, 0.0329004973173, -0.1322413831949,
+            -0.1332057565451, 1.0894461870193, -0.6319401264191,
+            -0.0416776277125, -1.0772529840469,  0.1423762738705
         ]
     ])
     # fmt: on
 
-    centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0]])
-    scales = np.array([2, 2, 2])
+    centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0], [3, -1, 0]])
+    scales = np.array([1.2, 2, 2, .3])
 
     odf_actor = actor.box(centers=centers, scales=1.0)
 
@@ -255,8 +262,8 @@ if __name__ == "__main__":
     float SH(int l, int m, in vec3 s)
     {
         vec3 ns = normalize(s);
-        float thetax = ns.y;
-        float phi = atan(ns.z, ns.x) + PI / 2;
+        float thetax = ns.z;
+        float phi = atan(ns.y, ns.x);
         float v = K(l, abs(m)) * P(l, abs(m), thetax);
         if(m != 0)
             v *= sqrt(2);
@@ -443,10 +450,11 @@ if __name__ == "__main__":
     #sh_basis = "tournier07"
     sh_order = 4
 
-    sh = np.zeros((3, 1, 1, 15))
+    sh = np.zeros((4, 1, 1, 15))
     sh[0, 0, 0, :] = coeffs[0, :]
     sh[1, 0, 0, :] = coeffs[1, :]
     sh[2, 0, 0, :] = coeffs[2, :]
+    sh[3, 0, 0, :] = coeffs[3, :]
 
     tensor_sf = sh_to_sf(
         sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
