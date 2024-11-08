@@ -1,6 +1,7 @@
 """
 This script includes TEXTURE experimentation for passing SH coefficients
 """
+
 import os
 
 import numpy as np
@@ -16,6 +17,7 @@ from fury.shaders import (
     shader_to_actor,
 )
 from fury.utils import numpy_to_vtk_image_data, set_polydata_tcoords
+
 
 def uv_calculations(n):
     """Return UV coordinates based on the number of elements.
@@ -49,6 +51,7 @@ def uv_calculations(n):
         )
     return uvs
 
+
 def minmax_norm(data, axis=1):
     """Returns the min-max normalization of data along an axis.
 
@@ -80,6 +83,7 @@ def minmax_norm(data, axis=1):
         return (data - minimum) / (maximum - minimum)
     if axis == 1:
         return (data - minimum[:, None]) / (maximum - minimum)[:, None]
+
 
 if __name__ == "__main__":
     show_man = window.ShowManager(size=(1920, 1080))
@@ -113,7 +117,7 @@ if __name__ == "__main__":
     # fmt: on
 
     centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0], [3, -1, 0]])
-    scales = np.array([1.2, 2, 2, .3])
+    scales = np.array([1.2, 2, 2, 0.3])
 
     odf_actor = actor.box(centers=centers, scales=1.0)
 
@@ -344,23 +348,6 @@ if __name__ == "__main__":
     }
     """
 
-    central_diffs_normals = """
-    vec3 centralDiffsNormals(in vec3 pos)
-    {
-        //vec2 e = vec2(1.0,-1.0)*0.5773*0.0005;
-        vec2 e = vec2(.001, -1);
-        return normalize(
-            e.xyy * map(pos + e.xyy).x + e.yyx * map(pos + e.yyx).x +
-            e.yxy * map(pos + e.yxy).x + e.xxx * map(pos + e.xxx).x );
-    }
-    """
-
-    """
-    central_diffs_normals = import_fury_shader(
-        os.path.join("sdf", "central_diffs.frag")
-    )
-    """
-
     cast_ray = """
     vec3 castRay(in vec3 ro, vec3 rd)
     {
@@ -388,6 +375,46 @@ if __name__ == "__main__":
     }
     """
 
+    central_diffs_normals = """
+    vec3 centralDiffsNormals(in vec3 pos)
+    {
+        //vec2 e = vec2(1.0,-1.0)*0.5773*0.0005;
+        vec2 e = vec2(.001, -1);
+        return normalize(
+            e.xyy * map(pos + e.xyy).x + e.yyx * map(pos + e.yyx).x +
+            e.yxy * map(pos + e.yxy).x + e.xxx * map(pos + e.xxx).x );
+    }
+    """
+
+    """
+    central_diffs_normals = import_fury_shader(
+        os.path.join("sdf", "central_diffs.frag")
+    )
+    """
+
+    # Applies the non-linearity that maps linear RGB to sRGB
+    linear_to_srgb = import_fury_shader(
+        os.path.join("lighting", "linear_to_srgb.frag")
+    )
+
+    # Inverse of linear_to_srgb()
+    srgb_to_linear = import_fury_shader(
+        os.path.join("lighting", "srgb_to_linear.frag")
+    )
+
+    # Turns a linear RGB color (i.e. rec. 709) into sRGB
+    linear_rgb_to_srgb = import_fury_shader(
+        os.path.join("lighting", "linear_rgb_to_srgb.frag")
+    )
+
+    # Inverse of linear_rgb_to_srgb()
+    srgb_to_linear_rgb = import_fury_shader(
+        os.path.join("lighting", "srgb_to_linear_rgb.frag")
+    )
+
+    # Logarithmic tonemapping operator. Input and output are linear RGB.
+    tonemap = import_fury_shader(os.path.join("lighting", "tonemap.frag"))
+
     blinn_phong_model = import_fury_shader(
         os.path.join("lighting", "blinn_phong_model.frag")
     )
@@ -395,8 +422,9 @@ if __name__ == "__main__":
     # fmt: off
     fs_dec = compose_shader([
         fs_defs, fs_unifs, fs_vs_vars, coeffs_norm, factorial, legendre_polys,
-        norm_const, spherical_harmonics, sdf_map, central_diffs_normals,
-        cast_ray, blinn_phong_model
+        norm_const, spherical_harmonics, sdf_map, cast_ray,
+        central_diffs_normals, linear_to_srgb, srgb_to_linear,
+        linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap, blinn_phong_model
     ])
     # fmt: on
 
@@ -415,12 +443,15 @@ if __name__ == "__main__":
 
     vec3 t = castRay(ro, rd);
 
+    vec3 color = vec3(1.);
+
     if(t.y > -.5)
     {
-        vec3 pos = ro + t.y * rd;
+        vec3 pos = ro- centerMCVSOutput + t.y * rd;
 
         vec3 normal = centralDiffsNormals(pos);
 
+        /*
         float occ = clamp(2 * t.z, 0, 1);
         //float sss = pow(clamp(1 + dot(normal, rd), 0, 1), 1);
         float sss = clamp(1 + dot(normal, rd), 0, 1);
@@ -431,11 +462,22 @@ if __name__ == "__main__":
         vec3 mater = .5 * mix(vec3(1, 1, 0), vec3(1), t.y);
 
         fragOutput0 = vec4(vec3(1, 0, 0) * lin, opacity);
+        */
+        vec3 colorDir = srgbToLinearRgb(abs(normalize(pos)));
+        float attenuation = dot(ld, normal);
+        color = blinnPhongIllumModel(
+            //attenuation, lightColor0, diffuseColor, specularPower,
+            attenuation, lightColor0, colorDir, specularPower,
+            specularColor, ambientColor);
     }
     else
     {
         discard;
     }
+
+    //fragOutput0 = vec4(linearToSrgb(color * colorDir), opacity);
+    vec3 outColor = linearRgbToSrgb(tonemap(color));
+    fragOutput0 = vec4(outColor, opacity);
     """
 
     shader_to_actor(
@@ -447,7 +489,7 @@ if __name__ == "__main__":
     sphere = get_sphere("repulsion724")
 
     sh_basis = "descoteaux07"
-    #sh_basis = "tournier07"
+    # sh_basis = "tournier07"
     sh_order = 4
 
     sh = np.zeros((4, 1, 1, 15))
@@ -457,7 +499,11 @@ if __name__ == "__main__":
     sh[3, 0, 0, :] = coeffs[3, :]
 
     tensor_sf = sh_to_sf(
-        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
+        sh,
+        sh_order_max=sh_order,
+        basis_type=sh_basis,
+        sphere=sphere,
+        legacy=True,
     )
 
     odf_slicer_actor = actor.odf_slicer(
