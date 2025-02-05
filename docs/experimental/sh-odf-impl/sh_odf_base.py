@@ -486,7 +486,7 @@ if __name__ == "__main__":
 
     show_man.scene.add(odf_actor)
 
-    sphere = get_sphere("repulsion724")
+    sphere = get_sphere(name="repulsion724")
 
     sh_basis = "descoteaux07"
     # sh_basis = "tournier07"
