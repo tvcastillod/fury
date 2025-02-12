@@ -378,7 +378,7 @@ if __name__ == "__main__":
     central_diffs_normals = """
     vec3 centralDiffsNormals(in vec3 pos)
     {
-        //vec2 e = vec2(1.0,-1.0)*0.5773*0.0005;
+        //vec2 e = vec2(1, -1) * .5773 * .0005;
         vec2 e = vec2(.001, -1);
         return normalize(
             e.xyy * map(pos + e.xyy).x + e.yyx * map(pos + e.yyx).x +
