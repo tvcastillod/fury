@@ -2,12 +2,11 @@
 This script includes TEXTURE experimentation for passing SH coefficients
 """
 
-
 import os
 
 import numpy as np
 from dipy.data import get_sphere
-from dipy.reconst.shm import sh_to_sf, sf_to_sh
+from dipy.reconst.shm import sf_to_sh, sh_to_sf
 
 from fury import actor, window
 from fury.lib import FloatArray, Texture
@@ -17,7 +16,11 @@ from fury.shaders import (
     import_fury_shader,
     shader_to_actor,
 )
-from fury.utils import numpy_to_vtk_image_data, set_polydata_tcoords, minmax_norm
+from fury.utils import (
+    minmax_norm,
+    numpy_to_vtk_image_data,
+    set_polydata_tcoords,
+)
 
 
 def uv_calculations(n):
@@ -53,7 +56,6 @@ def uv_calculations(n):
     return uvs
 
 
-
 if __name__ == "__main__":
     show_man = window.ShowManager(size=(1920, 1080))
     show_man.scene.background((1, 1, 1))
@@ -85,7 +87,7 @@ if __name__ == "__main__":
     ])
     # fmt: on
     centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0], [3, -1, 0]])
-    scales =  np.ones(4) * .5#np.array([1.2, 2, 2, 0.28])
+    scales = np.ones(4) * 0.5  # np.array([1.2, 2, 2, 0.28])
 
     odf_actor = actor.box(centers=centers, scales=1.0)
 
@@ -99,7 +101,7 @@ if __name__ == "__main__":
     big_minmax = np.repeat(minmax, 8, axis=0)
     attribute_to_actor(odf_actor, big_minmax, "minmax")
 
-    #sphere = get_sphere("symmetric724")
+    # sphere = get_sphere("symmetric724")
     sphere = get_sphere("repulsion100")
     sh_basis = "descoteaux07"
     sh_order = 4
@@ -111,7 +113,11 @@ if __name__ == "__main__":
     sh[3, 0, 0, :] = coeffs[3, :]
 
     tensor_sf = sh_to_sf(
-        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
+        sh,
+        sh_order_max=sh_order,
+        basis_type=sh_basis,
+        sphere=sphere,
+        legacy=True,
     )
     tensor_sf_max = abs(tensor_sf.reshape(4, 100)).max(axis=1)
     print(tensor_sf_max)
@@ -425,9 +431,6 @@ vec3 centralDiffsNormals(in vec3 p, float eps)
         norm_const, spherical_harmonics, sdf_map, cast_ray,
         central_diffs_normals, linear_to_srgb, srgb_to_linear,
         linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap, blinn_phong_model
-        norm_const, spherical_harmonics, sdf_map, cast_ray,
-        central_diffs_normals, linear_to_srgb, srgb_to_linear,
-        linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap, blinn_phong_model
     ])
     # fmt: on
 
@@ -507,9 +510,7 @@ vec3 centralDiffsNormals(in vec3 p, float eps)
         sphere=sphere,
         legacy=True,
     )
-    odf_slicer_actor = actor.odf_slicer(
-        tensor_sf, sphere=sphere, norm=True
-    )
+    odf_slicer_actor = actor.odf_slicer(tensor_sf, sphere=sphere, norm=True)
 
     show_man.scene.add(odf_slicer_actor)
 
