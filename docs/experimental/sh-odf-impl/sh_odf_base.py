@@ -2,11 +2,12 @@
 This script includes TEXTURE experimentation for passing SH coefficients
 """
 
+
 import os
 
 import numpy as np
 from dipy.data import get_sphere
-from dipy.reconst.shm import sh_to_sf
+from dipy.reconst.shm import sh_to_sf, sf_to_sh
 
 from fury import actor, window
 from fury.lib import FloatArray, Texture
@@ -16,7 +17,7 @@ from fury.shaders import (
     import_fury_shader,
     shader_to_actor,
 )
-from fury.utils import numpy_to_vtk_image_data, set_polydata_tcoords
+from fury.utils import numpy_to_vtk_image_data, set_polydata_tcoords, minmax_norm
 
 
 def uv_calculations(n):
@@ -52,38 +53,6 @@ def uv_calculations(n):
     return uvs
 
 
-def minmax_norm(data, axis=1):
-    """Returns the min-max normalization of data along an axis.
-
-    Parameters
-    ----------
-    data: ndarray
-        2D array
-    axis: int, optional
-        axis for the function to be applied on
-
-    Returns
-    -------
-    output : ndarray
-
-    """
-
-    if not isinstance(data, np.ndarray):
-        data = np.array(data)
-    if data.ndim == 1:
-        data = np.array([data])
-    elif data.ndim > 2:
-        raise ValueError("the dimension of the array dimension must be 2.")
-
-    minimum = data.min(axis=axis)
-    maximum = data.max(axis=axis)
-    if np.array_equal(minimum, maximum):
-        return data
-    if axis == 0:
-        return (data - minimum) / (maximum - minimum)
-    if axis == 1:
-        return (data - minimum[:, None]) / (maximum - minimum)[:, None]
-
 
 if __name__ == "__main__":
     show_man = window.ShowManager(size=(1920, 1080))
@@ -115,9 +84,8 @@ if __name__ == "__main__":
         ]
     ])
     # fmt: on
-
     centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0], [3, -1, 0]])
-    scales = np.array([1.2, 2, 2, 0.3])
+    scales =  np.ones(4) * .5#np.array([1.2, 2, 2, 0.28])
 
     odf_actor = actor.box(centers=centers, scales=1.0)
 
@@ -130,6 +98,28 @@ if __name__ == "__main__":
     minmax = np.array([coeffs.min(axis=1), coeffs.max(axis=1)]).T
     big_minmax = np.repeat(minmax, 8, axis=0)
     attribute_to_actor(odf_actor, big_minmax, "minmax")
+
+    #sphere = get_sphere("symmetric724")
+    sphere = get_sphere("repulsion100")
+    sh_basis = "descoteaux07"
+    sh_order = 4
+
+    sh = np.zeros((4, 1, 1, 15))
+    sh[0, 0, 0, :] = coeffs[0, :]
+    sh[1, 0, 0, :] = coeffs[1, :]
+    sh[2, 0, 0, :] = coeffs[2, :]
+    sh[3, 0, 0, :] = coeffs[3, :]
+
+    tensor_sf = sh_to_sf(
+        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
+    )
+    tensor_sf_max = abs(tensor_sf.reshape(4, 100)).max(axis=1)
+    print(tensor_sf_max)
+    print(coeffs.max(axis=1))
+
+    sfmax = np.array(tensor_sf_max)
+    big_sfmax = np.repeat(sfmax, 8, axis=0)
+    attribute_to_actor(odf_actor, big_sfmax, "sfmax")
 
     odf_actor_pd = odf_actor.GetMapper().GetInput()
 
@@ -163,11 +153,14 @@ if __name__ == "__main__":
     in vec3 center;
     in float scale;
     in vec2 minmax;
+    in float sfmax;
 
     out vec4 vertexMCVSOutput;
     out vec3 centerMCVSOutput;
     out float scaleVSOutput;
     out vec2 minmaxVSOutput;
+    out float sfmaxVSOutput;
+    out vec3 camPosMCVSOutput;
     """
 
     vs_impl = """
@@ -175,6 +168,7 @@ if __name__ == "__main__":
     centerMCVSOutput = center;
     scaleVSOutput = scale;
     minmaxVSOutput = minmax;
+    sfmaxVSOutput = sfmax;
     vec3 camPos = -MCVCMatrix[3].xyz * mat3(MCVCMatrix);
     """
 
@@ -183,6 +177,8 @@ if __name__ == "__main__":
     fs_defs = "#define PI 3.1415926535898"
 
     fs_unifs = """
+    uniform float psiMin = 99999.0;
+    uniform float psiMax = -99999.0;
     uniform mat4 MCVCMatrix;
     uniform samplerCube texture_0;
     //uniform int k;
@@ -193,18 +189,10 @@ if __name__ == "__main__":
     in vec3 centerMCVSOutput;
     in float scaleVSOutput;
     in vec2 minmaxVSOutput;
+    in float sfmaxVSOutput;
     """
 
-    coeffs_norm = """
-    float coeffsNorm(float coef)
-    {
-        float min = 0;
-        float max = 1;
-        float newMin = minmaxVSOutput.x;
-        float newMax = minmaxVSOutput.y;
-        return (coef - min) * ((newMax - newMin) / (max - min)) + newMin;
-    }
-    """
+    coeffs_norm = import_fury_shader(os.path.join("utils", "minmax_norm.glsl"))
 
     # Functions needed to calculate the associated Legendre polynomial
     factorial = """
@@ -281,6 +269,7 @@ if __name__ == "__main__":
     """
 
     sdf_map = """
+
     vec3 map( in vec3 p )
     {
         p = p - centerMCVSOutput;
@@ -293,57 +282,64 @@ if __name__ == "__main__":
         d=length(p00);
         n=p00 / d;
         // ================================================================
+        #define SH_COUNT 15
         float i = 1 / (numCoeffs * 2);
+        float shCoeffs[15];
+        float maxCoeff = 0.0;
+        for(int j=0; j < numCoeffs; j++){
+            shCoeffs[j] = rescale(
+                texture(
+                    texture0,
+                    vec2(i + j / numCoeffs, tcoordVCVSOutput.y)).x,
+                    0, 1, minmaxVSOutput.x, minmaxVSOutput.y
+            );// /abs(minmaxVSOutput.y);
+        }
+        r = shCoeffs[0] * SH(0, 0, n);
+        r += shCoeffs[1]* SH(2, -2, n);
+        r += shCoeffs[2]* SH(2, -1, n);
+        r += shCoeffs[3] * SH(2, 0, n);
+        r += shCoeffs[4] * SH(2, 1, n);
+        r += shCoeffs[5] * SH(2, 2, n);
+        r += shCoeffs[6] * SH(4, -4, n);
+        r += shCoeffs[7] * SH(4, -3, n);
+        r += shCoeffs[8]* SH(4, -2, n);
+        r += shCoeffs[9]* SH(4, -1, n);
+        r += shCoeffs[10]* SH(4, 0, n);
+        r += shCoeffs[11]* SH(4, 1, n);
+        r += shCoeffs[12]* SH(4, 2, n);
+        r += shCoeffs[13]* SH(4, 3, n);
+        r += shCoeffs[14]* SH(4, 4, n);
 
-        float c = texture(texture0, vec2(i, tcoordVCVSOutput.y)).x;
-        r = coeffsNorm(c) * SH(0, 0, n);
+        /*
+        // OPTION 2
+        float psiMin = 0.0;
+        float psiMax = 0.0;
+        for (int j = 0; j < numCoeffs; j++) {
+            float absCoeff = abs(shCoeffs[j]); // Take absolute value of each coefficient
+            psiMax += absCoeff; // Upper bound estimate
+            psiMin -= absCoeff; // Lower bound estimate
+        }
+        r /= (psiMax-psiMin);
+        */
 
-        c = texture(texture0, vec2(i + 1 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(2, -2, n);
+        /*
+        // OPTION 1
+        float maxCoeff = 0.0;
+        float minCoeff = 0.0;
+        for (int i = 0; i < numCoeffs; i++) {
+            maxCoeff += abs(shCoeffs[i]);
+        }
+        if (maxCoeff > 0.0) {
+            r /= maxCoeff;
+        }
+        */
 
-        c = texture(texture0, vec2(i + 2 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(2, -1, n);
-
-        c = texture(texture0, vec2(i + 3 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(2, 0, n);
-
-        c = texture(texture0, vec2(i + 4 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(2, 1, n);
-
-        c = texture(texture0, vec2(i + 5 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(2, 2, n);
-
-        c = texture(texture0, vec2(i + 6 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(4, -4, n);
-
-        c = texture(texture0, vec2(i + 7 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(4, -3, n);
-
-        c = texture(texture0, vec2(i + 8 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(4, -2, n);
-
-        c = texture(texture0, vec2(i + 9 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(4, -1, n);
-
-        c = texture(texture0, vec2(i + 10 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(4, 0, n);
-
-        c = texture(texture0, vec2(i + 11 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(4, 1, n);
-
-        c = texture(texture0, vec2(i + 12 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(4, 2, n);
-
-        c = texture(texture0, vec2(i + 13 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(4, 3, n);
-
-        c = texture(texture0, vec2(i + 14 / numCoeffs, tcoordVCVSOutput.y)).x;
-        r += coeffsNorm(c) * SH(4, 4, n);
-
-        r *= scaleVSOutput;
+        //r /= abs(minmaxVSOutput.y);
+        r /= abs(sfmaxVSOutput);
+        r *= scaleVSOutput * .9;
         // ================================================================
         s = SHAPE;
-        res = s;
+        res=s;
         return vec3(res.x, .5 + .5 * res.y, res.z);
     }
     """
@@ -353,7 +349,7 @@ if __name__ == "__main__":
     {
         vec3 res = vec3(1e10, -1, 1);
 
-        float maxd = 4;
+        float maxd = 1;
         float h = 1;
         float t = 0;
         vec2  m = vec2(-1);
@@ -376,20 +372,24 @@ if __name__ == "__main__":
     """
 
     central_diffs_normals = """
-    vec3 centralDiffsNormals(in vec3 pos)
-    {
-        //vec2 e = vec2(1, -1) * .5773 * .0005;
-        vec2 e = vec2(.001, -1);
-        return normalize(
-            e.xyy * map(pos + e.xyy).x + e.yyx * map(pos + e.yyx).x +
-            e.yxy * map(pos + e.yxy).x + e.xxx * map(pos + e.xxx).x );
-    }
-    """
+/*
+vec3 centralDiffsNormals(in vec3 p, float eps)
+{
+    vec2 h = vec2(eps, 0);
+    return normalize(vec3(mapp(p + h.xyy) - mapp(p - h.xyy),
+                          mapp(p + h.yxy) - mapp(p - h.yxy),
+                          mapp(p + h.yyx) - mapp(p - h.yyx)));
+}
+*/
+    vec3 centralDiffsNormals( in vec3 pos )
+{
+    const vec2 eps = vec2(0.0001,0.0);
 
-    """
-    central_diffs_normals = import_fury_shader(
-        os.path.join("sdf", "central_diffs.frag")
-    )
+	return normalize( vec3(
+           map(pos+eps.xyy).x - map(pos-eps.xyy).x,
+           map(pos+eps.yxy).x - map(pos-eps.yxy).x,
+           map(pos+eps.yyx).x - map(pos-eps.yyx).x ) );
+}
     """
 
     # Applies the non-linearity that maps linear RGB to sRGB
@@ -425,6 +425,9 @@ if __name__ == "__main__":
         norm_const, spherical_harmonics, sdf_map, cast_ray,
         central_diffs_normals, linear_to_srgb, srgb_to_linear,
         linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap, blinn_phong_model
+        norm_const, spherical_harmonics, sdf_map, cast_ray,
+        central_diffs_normals, linear_to_srgb, srgb_to_linear,
+        linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap, blinn_phong_model
     ])
     # fmt: on
 
@@ -433,7 +436,7 @@ if __name__ == "__main__":
     sdf_frag_impl = """
     vec3 pnt = vertexMCVSOutput.xyz;
 
-    vec3 ro = (-MCVCMatrix[3] * MCVCMatrix).xyz;
+    vec3 ro = -MCVCMatrix[3].xyz * mat3(MCVCMatrix);
 
     vec3 rd = normalize(pnt - ro);
 
@@ -447,8 +450,7 @@ if __name__ == "__main__":
 
     if(t.y > -.5)
     {
-        vec3 pos = ro- centerMCVSOutput + t.y * rd;
-
+        vec3 pos = ro - centerMCVSOutput + t.x * rd;
         vec3 normal = centralDiffsNormals(pos);
 
         /*
@@ -505,9 +507,8 @@ if __name__ == "__main__":
         sphere=sphere,
         legacy=True,
     )
-
     odf_slicer_actor = actor.odf_slicer(
-        tensor_sf, sphere=sphere, scale=0.5, colormap="plasma"
+        tensor_sf, sphere=sphere, norm=True
     )
 
     show_man.scene.add(odf_slicer_actor)
