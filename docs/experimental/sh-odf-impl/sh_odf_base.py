@@ -6,7 +6,7 @@ import os
 
 import numpy as np
 from dipy.data import get_sphere
-from dipy.reconst.shm import sf_to_sh, sh_to_sf
+from dipy.reconst.shm import sh_to_sf
 
 from fury import actor, window
 from fury.lib import FloatArray, Texture
