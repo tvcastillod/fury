@@ -101,8 +101,7 @@ if __name__ == "__main__":
     big_minmax = np.repeat(minmax, 8, axis=0)
     attribute_to_actor(odf_actor, big_minmax, "minmax")
 
-    # sphere = get_sphere("symmetric724")
-    sphere = get_sphere("repulsion100")
+    sphere = get_sphere(name="repulsion100")
     sh_basis = "descoteaux07"
     sh_order = 4
 
