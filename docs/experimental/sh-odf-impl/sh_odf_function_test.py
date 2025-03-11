@@ -1,8 +1,10 @@
 """
 This script includes ODF implementation with sdf definition.
 """
-
+import os
 import numpy as np
+from dipy.data.fetcher import dipy_home
+from dipy.io.image import load_nifti
 from dipy.data import get_sphere
 from dipy.reconst.shm import sh_to_sf
 
@@ -36,6 +38,7 @@ if __name__ == "__main__":
             -0.0416776277125, -1.0772529840469,  0.1423762738705
         ]
     ])
+
     # fmt: on
     centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0], [3, -1, 0]])
     scales =  np.ones(4) * .5
@@ -62,4 +65,22 @@ if __name__ == "__main__":
 
     show_man.scene.add(odf_slicer_actor)
 
+    show_man.start()
+
+    show_man = window.ShowManager(size=(1920, 1080))
+    show_man.scene.background((1, 1, 1))
+    dataset_dir = os.path.join(dipy_home, "stanford_hardi")
+
+    coeffs, affine = load_nifti("docs/experimental/odf_slice_1.nii")
+
+    valid_mask = np.abs(coeffs).max(axis=(-1)) > 0
+    indices = np.nonzero(valid_mask)
+
+    centers = np.asarray(indices).T
+
+    x, y, z, s = coeffs.shape
+    coeffs = coeffs[:, :, :].reshape((x * y * z, s))
+    odf_actor = actor.odf_impl(centers=centers[:50], coeffs=coeffs[:50])
+
+    show_man.scene.add(odf_actor)
     show_man.start()

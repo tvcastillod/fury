@@ -48,23 +48,19 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     big_minmax = np.repeat(minmax, 8, axis=0)
     attribute_to_actor(odf_actor, big_minmax, "minmax")
 
-    #sphere = get_sphere("symmetric724")
     sphere = get_sphere(sphere_type)
     sh_basis = "descoteaux07"
     sh_order = 4
 
-    sh = np.zeros((4, 1, 1, 15))
-    sh[0, 0, 0, :] = coeffs[0, :]
-    sh[1, 0, 0, :] = coeffs[1, :]
-    sh[2, 0, 0, :] = coeffs[2, :]
-    sh[3, 0, 0, :] = coeffs[3, :]
+    n_glyphs = coeffs.shape[0]
+    sh = np.zeros((n_glyphs, 1, 1, 15))
+    for i in range (n_glyphs):
+        sh[i, 0, 0, :] = coeffs[i, :]
 
     tensor_sf = sh_to_sf(
         sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
     )
-    tensor_sf_max = abs(tensor_sf.reshape(4, 100)).max(axis=1)
-    print(tensor_sf_max)
-    print(coeffs.max(axis=1))
+    tensor_sf_max = abs(tensor_sf.reshape(n_glyphs, 100)).max(axis=1)
 
     sfmax = np.array(tensor_sf_max)
     big_sfmax = np.repeat(sfmax, 8, axis=0)
@@ -72,7 +68,6 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
 
     odf_actor_pd = odf_actor.GetMapper().GetInput()
 
-    n_glyphs = coeffs.shape[0]
     uv_vals = np.array(uv_calculations(n_glyphs))
     num_pnts = uv_vals.shape[0]
 
@@ -228,7 +223,8 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
         }
         else
         {
-            discard;
+            fragOutput0 = vec4(vec3(.8), opacity);
+            //discard;
         }
     """
 

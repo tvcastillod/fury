@@ -4088,7 +4088,7 @@ def odf(centers, coeffs, sh_basis="descoteaux", scales=1.0, opacity=1.0):
     return sh_odf(centers, coeffs, degree, sh_basis, scales, opacity)
 
 
-def odf_impl(centers, coeffs, sphere_type="repulsion100", scales=1.0, opacity=1.0):
+def odf_impl(centers, coeffs, sphere_type="repulsion100", scales=.5, opacity=1.0):
     """
     FURY actor for visualizing Orientation Distribution Functions (ODFs) using descoteaux07 basis given an array of Spherical Harmonics (SH) coefficients.
 
@@ -4109,7 +4109,7 @@ def odf_impl(centers, coeffs, sphere_type="repulsion100", scales=1.0, opacity=1.
     -------
     odf: Actor
 
-    """  # noqa: E501
+    """
 
     if sphere_type is None:
         sphere_type = "repulsion100"
@@ -4131,11 +4131,6 @@ def odf_impl(centers, coeffs, sphere_type="repulsion100", scales=1.0, opacity=1.
             "number of odf glyphs defined does not match with number of centers"
         )
 
-    coeffs_given = coeffs.shape[-1]
-    degree = int((np.sqrt(8 * coeffs_given + 1) - 3) / 2)
-    if degree % 2 != 0:
-        degree -= 1
-    coeffs = coeffs[:, : int(((degree + 1) * (degree + 2)) / 2)]
     if not isinstance(scales, np.ndarray):
         scales = np.array(scales)
     if scales.size == 1:
@@ -4145,7 +4140,7 @@ def odf_impl(centers, coeffs, sphere_type="repulsion100", scales=1.0, opacity=1.
             (scales, np.ones(centers.shape[0] - scales.shape[0])), axis=None
         )
 
-    total = np.sum(abs(coeffs), axis=1)
-    coeffs = np.dot(np.diag(1 / total * scales), coeffs) * 1.7
+    #total = np.sum(abs(coeffs), axis=1)
+    #coeffs = np.dot(np.diag(1 / total * scales), coeffs) * 1.7
 
     return sh_odf_calc(centers, coeffs, sphere_type, scales, opacity)
