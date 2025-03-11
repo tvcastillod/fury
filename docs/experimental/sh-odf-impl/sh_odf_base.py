@@ -268,6 +268,108 @@ if __name__ == "__main__":
 
     sdf_map = """
 
+    /*
+    def fibonacci_sphere(samples=1000):
+
+    points = []
+    phi = math.pi * (math.sqrt(5.) - 1.)  # golden angle in radians
+
+    for i in range(samples):
+        y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
+        radius = math.sqrt(1 - y * y)  # radius at y
+
+        theta = phi * i  # golden angle increment
+
+        x = math.cos(theta) * radius
+        z = math.sin(theta) * radius
+
+        points.append((x, y, z))
+
+    return points
+    */
+
+    const int SIZE = 100;
+    void fibonacci_sphere(out vec3 result[SIZE]){
+
+        vec3 points[SIZE];
+        float phi = PI * (sqrt(5.) - 1.);  // golden angle in radians
+
+        for(int i=0; i < SIZE; i++){
+            float y = 1 - (i / float(SIZE - 1)) * 2;  // y goes from 1 to -1
+            float radius = sqrt(1 - y * y);  // radius at y
+
+            float theta = phi * i; // golden angle increment
+
+            float x = cos(theta) * radius;
+            float z = sin(theta) * radius;
+
+            points[i] = normalize(vec3(x, y, z));
+        }
+        result = points;
+    }
+
+    vec3 map_max( in vec3 p )
+    {
+        p = p - centerMCVSOutput;
+        vec3 p00 = p;
+
+        float r, d; vec3 n, s, res;
+
+        #define SHAPE (vec3(d-abs(r), sign(r),d))
+        //#define SHAPE (vec3(d-0.35, -1.0+2.0*clamp(0.5 + 16.0*r,0.0,1.0),d))
+        d=length(p00);
+        n=p00 / d;
+        // ================================================================
+        #define SH_COUNT 15
+        float i = 1 / (numCoeffs * 2);
+        float shCoeffs[15];
+        float maxCoeff = 0.0;
+        for(int j=0; j < numCoeffs; j++){
+            shCoeffs[j] = rescale(
+                texture(
+                    texture0,
+                    vec2(i + j / numCoeffs, tcoordVCVSOutput.y)).x,
+                    0, 1, minmaxVSOutput.x, minmaxVSOutput.y
+            );// /abs(minmaxVSOutput.y);
+        }
+        r = shCoeffs[0] * SH(0, 0, n);
+        r += shCoeffs[1]* SH(2, -2, n);
+        r += shCoeffs[2]* SH(2, -1, n);
+        r += shCoeffs[3] * SH(2, 0, n);
+        r += shCoeffs[4] * SH(2, 1, n);
+        r += shCoeffs[5] * SH(2, 2, n);
+        r += shCoeffs[6] * SH(4, -4, n);
+        r += shCoeffs[7] * SH(4, -3, n);
+        r += shCoeffs[8]* SH(4, -2, n);
+        r += shCoeffs[9]* SH(4, -1, n);
+        r += shCoeffs[10]* SH(4, 0, n);
+        r += shCoeffs[11]* SH(4, 1, n);
+        r += shCoeffs[12]* SH(4, 2, n);
+        r += shCoeffs[13]* SH(4, 3, n);
+        r += shCoeffs[14]* SH(4, 4, n);
+
+        //r *= scaleVSOutput * .9;
+        // ================================================================
+        s = SHAPE;
+        res=s;
+        return vec3(res.x, .5 + .5 * res.y, res.z);
+    }
+
+    float get_max() {
+        vec3 points[SIZE];
+        fibonacci_sphere(points);
+        float sf = 0.0;
+        float max_value = 0.0;
+        for(int j=0; j < SIZE; j++){
+            sf = map_max(points[j]).x;
+            if (sf > max_value){
+                max_value = sf;
+            }
+        }
+        return max_value;
+    }
+
+    float MAX_SF = get_max();
     vec3 map( in vec3 p )
     {
         p = p - centerMCVSOutput;
@@ -333,7 +435,8 @@ if __name__ == "__main__":
         */
 
         //r /= abs(minmaxVSOutput.y);
-        r /= abs(sfmaxVSOutput);
+        //r /= abs(sfmaxVSOutput);
+        r /=  abs(MAX_SF);
         r *= scaleVSOutput * .9;
         // ================================================================
         s = SHAPE;
