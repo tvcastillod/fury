@@ -435,8 +435,8 @@ if __name__ == "__main__":
         */
 
         //r /= abs(minmaxVSOutput.y);
-        //r /= abs(sfmaxVSOutput);
-        r /=  abs(MAX_SF);
+        r /= abs(sfmaxVSOutput);
+        //r /=  abs(MAX_SF);
         r *= scaleVSOutput * .9;
         // ================================================================
         s = SHAPE;

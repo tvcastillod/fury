@@ -80,7 +80,14 @@ if __name__ == "__main__":
 
     x, y, z, s = coeffs.shape
     coeffs = coeffs[:, :, :].reshape((x * y * z, s))
-    odf_actor = actor.odf_impl(centers=centers[:50], coeffs=coeffs[:50])
+    odf_actor = actor.odf_impl(centers=centers, coeffs=coeffs)
 
     show_man.scene.add(odf_actor)
+    show_man.start()
+
+    show_man = window.ShowManager(size=(1920, 1080))
+    show_man.scene.background((1, 1, 1))
+    odf_peters_actor = actor.odf(centers=centers, coeffs=coeffs)
+
+    show_man.scene.add(odf_peters_actor)
     show_man.start()

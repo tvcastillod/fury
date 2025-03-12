@@ -37,6 +37,7 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
 
     """
     odf_actor = actor.box(centers=centers, scales=1.0)
+    odf_actor.GetMapper().SetVBOShiftScaleMethod(False)
 
     big_centers = np.repeat(centers, 8, axis=0)
     attribute_to_actor(odf_actor, big_centers, "center")
@@ -217,14 +218,12 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
         if(t.y > -.5)
         {
             vec3 pos = ro - centerMCVSOutput + t.x * rd;
-            //vec3 normal = centralDiffsNormals(pos);
             vec3 colorDir = srgbToLinearRgb(abs(normalize(pos)));
             fragOutput0 = vec4(colorDir, opacity);
         }
         else
         {
-            fragOutput0 = vec4(vec3(.8), opacity);
-            //discard;
+            discard;
         }
     """
 
