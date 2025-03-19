@@ -55,9 +55,9 @@ if __name__ == "__main__":
     # fmt: on
 
     centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0], [3, -1, 0]])
-    scales = np.ones(4) * 0.5  # np.array([1.2, 2, 2, 0.28])
+    scales = np.ones(4) * 0.5
 
-    odf_actor = actor.box(centers=centers, scales=1.0)
+    odf_actor = actor.box(centers=centers, scales=1)
 
     big_centers = np.repeat(centers, 8, axis=0)
     attribute_to_actor(odf_actor, big_centers, "center")
@@ -70,33 +70,30 @@ if __name__ == "__main__":
     attribute_to_actor(odf_actor, big_minmax, "minmax")
 
     sphere = get_sphere(name="repulsion100")
-    sh_basis = "descoteaux07"
-    sh_order = 4
+    n_verts = sphere.vertices.shape[0]
 
+    sh_basis = "descoteaux07"
+
+    n_glyphs = coeffs.shape[0]
+    sh_order = 4  # TODO: Calculate this from the number of coefficients
+
+    # TODO: Calculate shape from coefficients
     sh = np.zeros((4, 1, 1, 15))
     sh[0, 0, 0, :] = coeffs[0, :]
     sh[1, 0, 0, :] = coeffs[1, :]
     sh[2, 0, 0, :] = coeffs[2, :]
     sh[3, 0, 0, :] = coeffs[3, :]
 
-    tensor_sf = sh_to_sf(
-        sh,
-        sh_order_max=sh_order,
-        basis_type=sh_basis,
-        sphere=sphere,
-        legacy=True,
+    fODFs = sh_to_sf(
+        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere
     )
-    tensor_sf_max = abs(tensor_sf.reshape(4, 100)).max(axis=1)
-    print(tensor_sf_max)
-    print(coeffs.max(axis=1))
 
-    sf_max = np.array(tensor_sf_max)
-    big_sf_max = np.repeat(sf_max, 8, axis=0)
-    attribute_to_actor(odf_actor, big_sf_max, "sfmax")
+    max_fODFs = abs(fODFs.reshape(n_glyphs, n_verts)).max(axis=1)
+    big_max_fodfs = np.repeat(max_fODFs, 8, axis=0)
+    attribute_to_actor(odf_actor, big_max_fodfs, "maxfODFs")
 
     odf_actor_pd = odf_actor.GetMapper().GetInput()
 
-    n_glyphs = coeffs.shape[0]
     uv_vals = np.array(uv_calculations(n_glyphs))
     num_pnts = uv_vals.shape[0]
 
@@ -125,13 +122,13 @@ if __name__ == "__main__":
     in vec3 center;
     in float scale;
     in vec2 minmax;
-    in float sfmax;
+    in float maxfODFs;
 
     out vec4 vertexMCVSOutput;
     out vec3 centerMCVSOutput;
     out float scaleVSOutput;
     out vec2 minmaxVSOutput;
-    out float sfmaxVSOutput;
+    out float maxfODFsVSOutput;
     out vec3 camPosMCVSOutput;
     """
 
@@ -140,7 +137,7 @@ if __name__ == "__main__":
     centerMCVSOutput = center;
     scaleVSOutput = scale;
     minmaxVSOutput = minmax;
-    sfmaxVSOutput = sfmax;
+    maxfODFsVSOutput = maxfODFs;
     vec3 camPos = -MCVCMatrix[3].xyz * mat3(MCVCMatrix);
     """
 
@@ -160,7 +157,7 @@ if __name__ == "__main__":
     in vec3 centerMCVSOutput;
     in float scaleVSOutput;
     in vec2 minmaxVSOutput;
-    in float sfmaxVSOutput;
+    in float maxfODFsVSOutput;
     """
 
     coeffs_norm = import_fury_shader(os.path.join("utils", "minmax_norm.glsl"))
@@ -416,7 +413,8 @@ if __name__ == "__main__":
         */
 
         //r /= abs(minmaxVSOutput.y);
-        r /= abs(sfmaxVSOutput);
+        //r /= abs(maxfODFsVSOutput);
+        r /= maxfODFsVSOutput;
         //r /=  abs(MAX_SF);
         r *= scaleVSOutput * .9;
         // ================================================================
@@ -579,14 +577,14 @@ if __name__ == "__main__":
     sh[2, 0, 0, :] = coeffs[2, :]
     sh[3, 0, 0, :] = coeffs[3, :]
 
-    tensor_sf = sh_to_sf(
+    fODFs = sh_to_sf(
         sh,
         sh_order_max=sh_order,
         basis_type=sh_basis,
         sphere=sphere,
         legacy=True,
     )
-    odf_slicer_actor = actor.odf_slicer(tensor_sf, sphere=sphere, norm=True)
+    odf_slicer_actor = actor.odf_slicer(fODFs, sphere=sphere, norm=True)
 
     show_man.scene.add(odf_slicer_actor)
 

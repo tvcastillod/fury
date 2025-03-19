@@ -40,7 +40,7 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     box_actor: Actor
 
     """
-    odf_actor = actor.box(centers=centers, scales=1.0)
+    odf_actor = actor.box(centers=centers, scales=1)
     odf_actor.GetMapper().SetVBOShiftScaleMethod(False)
 
     big_centers = np.repeat(centers, 8, axis=0)
@@ -63,11 +63,7 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
         sh[i, 0, 0, :] = coeffs[i, :]
 
     tensor_sf = sh_to_sf(
-        sh,
-        sh_order_max=sh_order,
-        basis_type=sh_basis,
-        sphere=sphere,
-        legacy=True,
+        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere
     )
     tensor_sf_max = abs(tensor_sf.reshape(n_glyphs, 100)).max(axis=1)
 
