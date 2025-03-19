@@ -1,9 +1,9 @@
 import os
 
 import numpy as np
-
 from dipy.data import get_sphere
 from dipy.reconst.shm import sh_to_sf
+
 from fury import actor
 from fury.lib import FloatArray, Texture
 from fury.shaders import (
@@ -13,7 +13,11 @@ from fury.shaders import (
     shader_to_actor,
 )
 from fury.texture.utils import uv_calculations
-from fury.utils import minmax_norm, numpy_to_vtk_image_data, set_polydata_tcoords
+from fury.utils import (
+    minmax_norm,
+    numpy_to_vtk_image_data,
+    set_polydata_tcoords,
+)
 
 
 def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
@@ -49,17 +53,21 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     big_minmax = np.repeat(minmax, 8, axis=0)
     attribute_to_actor(odf_actor, big_minmax, "minmax")
 
-    sphere = get_sphere(sphere_type)
+    sphere = get_sphere(name=sphere_type)
     sh_basis = "descoteaux07"
     sh_order = 4
 
     n_glyphs = coeffs.shape[0]
     sh = np.zeros((n_glyphs, 1, 1, 15))
-    for i in range (n_glyphs):
+    for i in range(n_glyphs):
         sh[i, 0, 0, :] = coeffs[i, :]
 
     tensor_sf = sh_to_sf(
-        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
+        sh,
+        sh_order_max=sh_order,
+        basis_type=sh_basis,
+        sphere=sphere,
+        legacy=True,
     )
     tensor_sf_max = abs(tensor_sf.reshape(n_glyphs, 100)).max(axis=1)
 
@@ -142,15 +150,25 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     # "Evaluate an Associated Legendre Polynomial P(l,m,x) at x
     # For more, see “Numerical Methods in C: The Art of Scientific Computing”,
     # Cambridge University Press, 1992, pp 252-254"
-    legendre_polys = import_fury_shader(os.path.join("utils", "legendre_polynomial.glsl"))
+    legendre_polys = import_fury_shader(
+        os.path.join("utils", "legendre_polynomial.glsl")
+    )
 
-    norm_const = import_fury_shader(os.path.join("utils", "sh_normalization_factor.glsl"))
+    norm_const = import_fury_shader(
+        os.path.join("utils", "sh_normalization_factor.glsl")
+    )
 
-    spherical_harmonics = import_fury_shader(os.path.join("ray_tracing\odf", "sh_function.glsl"))
+    spherical_harmonics = import_fury_shader(
+        os.path.join("ray_tracing", "odf", "sh_function.glsl")
+    )
 
-    sdf_map = import_fury_shader(os.path.join("sdf", "sd_spherical_harmonics.frag"))
+    sdf_map = import_fury_shader(
+        os.path.join("sdf", "sd_spherical_harmonics.frag")
+    )
 
-    cast_ray = import_fury_shader(os.path.join("ray_tracing\odf", "sh_cast_ray.frag"))
+    cast_ray = import_fury_shader(
+        os.path.join("ray_tracing", "odf", "sh_cast_ray.frag")
+    )
 
     central_diffs_normals = """
     vec3 centralDiffsNormals( in vec3 pos )
@@ -232,4 +250,3 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     )
 
     return odf_actor
-

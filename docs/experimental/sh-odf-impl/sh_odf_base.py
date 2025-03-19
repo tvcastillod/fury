@@ -16,45 +16,12 @@ from fury.shaders import (
     import_fury_shader,
     shader_to_actor,
 )
+from fury.texture.utils import uv_calculations
 from fury.utils import (
     minmax_norm,
     numpy_to_vtk_image_data,
     set_polydata_tcoords,
 )
-
-
-def uv_calculations(n):
-    """Return UV coordinates based on the number of elements.
-
-    Parameters
-    ----------
-    n : int
-        number of elements.
-
-    Returns
-    -------
-    uvs : ndrray
-        UV coordinates for each element.
-
-    """
-    uvs = []
-    for i in range(0, n):
-        a = (n - (i + 1)) / n
-        b = (n - i) / n
-        uvs.extend(
-            [
-                [0.001, a + 0.001],
-                [0.001, b - 0.001],
-                [0.999, b - 0.001],
-                [0.999, a + 0.001],
-                [0.001, a + 0.001],
-                [0.001, b - 0.001],
-                [0.999, b - 0.001],
-                [0.999, a + 0.001],
-            ]
-        )
-    return uvs
-
 
 if __name__ == "__main__":
     show_man = window.ShowManager(size=(1920, 1080))
@@ -86,6 +53,7 @@ if __name__ == "__main__":
         ]
     ])
     # fmt: on
+
     centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0], [3, -1, 0]])
     scales = np.ones(4) * 0.5  # np.array([1.2, 2, 2, 0.28])
 
@@ -122,9 +90,9 @@ if __name__ == "__main__":
     print(tensor_sf_max)
     print(coeffs.max(axis=1))
 
-    sfmax = np.array(tensor_sf_max)
-    big_sfmax = np.repeat(sfmax, 8, axis=0)
-    attribute_to_actor(odf_actor, big_sfmax, "sfmax")
+    sf_max = np.array(tensor_sf_max)
+    big_sf_max = np.repeat(sf_max, 8, axis=0)
+    attribute_to_actor(odf_actor, big_sf_max, "sfmax")
 
     odf_actor_pd = odf_actor.GetMapper().GetInput()
 
@@ -149,7 +117,6 @@ if __name__ == "__main__":
 
     odf_actor.GetProperty().SetTexture("texture0", texture)
 
-    # TODO: Set int uniform
     odf_actor.GetShaderProperty().GetFragmentCustomUniforms().SetUniformf(
         "numCoeffs", 15
     )
@@ -186,7 +153,6 @@ if __name__ == "__main__":
     uniform float psiMax = -99999.0;
     uniform mat4 MCVCMatrix;
     uniform samplerCube texture_0;
-    //uniform int k;
     """
 
     fs_vs_vars = """
@@ -274,7 +240,6 @@ if __name__ == "__main__":
     """
 
     sdf_map = """
-
     /*
     def fibonacci_sphere(samples=1000):
 
@@ -293,7 +258,6 @@ if __name__ == "__main__":
         points.append((x, y, z))
 
     return points
-    */
 
     const int SIZE = 100;
     void fibonacci_sphere(out vec3 result[SIZE]){
@@ -322,12 +286,16 @@ if __name__ == "__main__":
 
         float r, d; vec3 n, s, res;
 
+        // TODO: Move out of the function
         #define SHAPE (vec3(d-abs(r), sign(r),d))
         //#define SHAPE (vec3(d-0.35, -1.0+2.0*clamp(0.5 + 16.0*r,0.0,1.0),d))
+
         d=length(p00);
         n=p00 / d;
-        // ================================================================
+
+        // TODO: Move out of the function
         #define SH_COUNT 15
+
         float i = 1 / (numCoeffs * 2);
         float shCoeffs[15];
         float maxCoeff = 0.0;
@@ -340,20 +308,20 @@ if __name__ == "__main__":
             );// /abs(minmaxVSOutput.y);
         }
         r = shCoeffs[0] * SH(0, 0, n);
-        r += shCoeffs[1]* SH(2, -2, n);
-        r += shCoeffs[2]* SH(2, -1, n);
+        r += shCoeffs[1] * SH(2, -2, n);
+        r += shCoeffs[2] * SH(2, -1, n);
         r += shCoeffs[3] * SH(2, 0, n);
         r += shCoeffs[4] * SH(2, 1, n);
         r += shCoeffs[5] * SH(2, 2, n);
         r += shCoeffs[6] * SH(4, -4, n);
         r += shCoeffs[7] * SH(4, -3, n);
-        r += shCoeffs[8]* SH(4, -2, n);
-        r += shCoeffs[9]* SH(4, -1, n);
-        r += shCoeffs[10]* SH(4, 0, n);
-        r += shCoeffs[11]* SH(4, 1, n);
-        r += shCoeffs[12]* SH(4, 2, n);
-        r += shCoeffs[13]* SH(4, 3, n);
-        r += shCoeffs[14]* SH(4, 4, n);
+        r += shCoeffs[8] * SH(4, -2, n);
+        r += shCoeffs[9] * SH(4, -1, n);
+        r += shCoeffs[10] * SH(4, 0, n);
+        r += shCoeffs[11] * SH(4, 1, n);
+        r += shCoeffs[12] * SH(4, 2, n);
+        r += shCoeffs[13] * SH(4, 3, n);
+        r += shCoeffs[14] * SH(4, 4, n);
 
         //r *= scaleVSOutput * .9;
         // ================================================================
@@ -377,6 +345,8 @@ if __name__ == "__main__":
     }
 
     float MAX_SF = get_max();
+    */
+
     vec3 map( in vec3 p )
     {
         p = p - centerMCVSOutput;
@@ -384,12 +354,16 @@ if __name__ == "__main__":
 
         float r, d; vec3 n, s, res;
 
+        // TODO: Move out of the function
         #define SHAPE (vec3(d-abs(r), sign(r),d))
         //#define SHAPE (vec3(d-0.35, -1.0+2.0*clamp(0.5 + 16.0*r,0.0,1.0),d))
+
         d=length(p00);
         n=p00 / d;
-        // ================================================================
+
+        // TODO: Move out of the function
         #define SH_COUNT 15
+
         float i = 1 / (numCoeffs * 2);
         float shCoeffs[15];
         float maxCoeff = 0.0;
@@ -480,24 +454,24 @@ if __name__ == "__main__":
     """
 
     central_diffs_normals = """
-/*
-vec3 centralDiffsNormals(in vec3 p, float eps)
-{
-    vec2 h = vec2(eps, 0);
-    return normalize(vec3(mapp(p + h.xyy) - mapp(p - h.xyy),
-                          mapp(p + h.yxy) - mapp(p - h.yxy),
-                          mapp(p + h.yyx) - mapp(p - h.yyx)));
-}
-*/
-    vec3 centralDiffsNormals( in vec3 pos )
-{
-    const vec2 eps = vec2(0.0001,0.0);
+    /*
+    vec3 centralDiffsNormals(in vec3 p, float eps)
+    {
+        vec2 h = vec2(eps, 0);
+        return normalize(vec3(mapp(p + h.xyy) - mapp(p - h.xyy),
+                            mapp(p + h.yxy) - mapp(p - h.yxy),
+                            mapp(p + h.yyx) - mapp(p - h.yyx)));
+    }
+    */
+        vec3 centralDiffsNormals( in vec3 pos )
+    {
+        const vec2 eps = vec2(0.0001,0.0);
 
-	return normalize( vec3(
-           map(pos+eps.xyy).x - map(pos-eps.xyy).x,
-           map(pos+eps.yxy).x - map(pos-eps.yxy).x,
-           map(pos+eps.yyx).x - map(pos-eps.yyx).x ) );
-}
+        return normalize( vec3(
+            map(pos+eps.xyy).x - map(pos-eps.xyy).x,
+            map(pos+eps.yxy).x - map(pos-eps.yxy).x,
+            map(pos+eps.yyx).x - map(pos-eps.yyx).x ) );
+    }
     """
 
     # Applies the non-linearity that maps linear RGB to sRGB
