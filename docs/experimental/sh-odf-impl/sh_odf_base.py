@@ -70,31 +70,35 @@ if __name__ == "__main__":
     attribute_to_actor(odf_actor, big_minmax, "minmax")
 
     sphere = get_sphere(name="repulsion100")
-    n_verts = sphere.vertices.shape[0]
+    num_verts = sphere.vertices.shape[0]
 
-    sh_basis = "descoteaux07"
+    num_glyphs = coeffs.shape[0]
 
-    n_glyphs = coeffs.shape[0]
-    sh_order = 4  # TODO: Calculate this from the number of coefficients
+    max_num_coeffs = coeffs.shape[-1]
+    max_sh_degree = int((np.sqrt(8 * max_num_coeffs + 1) - 3) / 2)
+    max_poly_degree = 2 * max_sh_degree + 2
+    viz_sh_degree = max_sh_degree
 
-    # TODO: Calculate shape from coefficients
-    sh = np.zeros((4, 1, 1, 15))
+    # TODO: Find a way to avoid reshaping the SH coefficients
+    sh = np.zeros((max_sh_degree, 1, 1, max_num_coeffs))
     sh[0, 0, 0, :] = coeffs[0, :]
     sh[1, 0, 0, :] = coeffs[1, :]
     sh[2, 0, 0, :] = coeffs[2, :]
     sh[3, 0, 0, :] = coeffs[3, :]
 
+    sh_basis = "descoteaux07"
+
     fODFs = sh_to_sf(
-        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere
+        sh, sh_order_max=max_sh_degree, basis_type=sh_basis, sphere=sphere
     )
 
-    max_fODFs = abs(fODFs.reshape(n_glyphs, n_verts)).max(axis=1)
+    max_fODFs = abs(fODFs.reshape(num_glyphs, num_verts)).max(axis=1)
     big_max_fodfs = np.repeat(max_fODFs, 8, axis=0)
     attribute_to_actor(odf_actor, big_max_fodfs, "maxfODFs")
 
     odf_actor_pd = odf_actor.GetMapper().GetInput()
 
-    uv_vals = np.array(uv_calculations(n_glyphs))
+    uv_vals = np.array(uv_calculations(num_glyphs))
     num_pnts = uv_vals.shape[0]
 
     t_coords = FloatArray()
@@ -115,30 +119,35 @@ if __name__ == "__main__":
     odf_actor.GetProperty().SetTexture("texture0", texture)
 
     odf_actor.GetShaderProperty().GetFragmentCustomUniforms().SetUniformf(
-        "numCoeffs", 15
+        "shDegree", viz_sh_degree
     )
 
     vs_dec = """
+    uniform float shDegree;
+
     in vec3 center;
-    in float scale;
     in vec2 minmax;
     in float maxfODFs;
+    in float scale;
+
+    flat out float numCoeffsVSOutput;
 
     out vec4 vertexMCVSOutput;
+    out vec3 camPosMCVSOutput;
     out vec3 centerMCVSOutput;
-    out float scaleVSOutput;
     out vec2 minmaxVSOutput;
     out float maxfODFsVSOutput;
-    out vec3 camPosMCVSOutput;
+    out float scaleVSOutput;
     """
 
     vs_impl = """
-    vertexMCVSOutput = vertexMC;
+    camPosMCVSOutput = -MCVCMatrix[3].xyz * mat3(MCVCMatrix);
     centerMCVSOutput = center;
-    scaleVSOutput = scale;
-    minmaxVSOutput = minmax;
     maxfODFsVSOutput = maxfODFs;
-    vec3 camPos = -MCVCMatrix[3].xyz * mat3(MCVCMatrix);
+    minmaxVSOutput = minmax;
+    numCoeffsVSOutput = (shDegree + 1) * (shDegree + 2) / 2;
+    scaleVSOutput = scale;
+    vertexMCVSOutput = vertexMC;
     """
 
     shader_to_actor(odf_actor, "vertex", decl_code=vs_dec, impl_code=vs_impl)
@@ -153,11 +162,13 @@ if __name__ == "__main__":
     """
 
     fs_vs_vars = """
+    flat in float numCoeffsVSOutput;
+
     in vec4 vertexMCVSOutput;
     in vec3 centerMCVSOutput;
-    in float scaleVSOutput;
     in vec2 minmaxVSOutput;
     in float maxfODFsVSOutput;
+    in float scaleVSOutput;
     """
 
     coeffs_norm = import_fury_shader(os.path.join("utils", "minmax_norm.glsl"))
@@ -293,14 +304,14 @@ if __name__ == "__main__":
         // TODO: Move out of the function
         #define SH_COUNT 15
 
-        float i = 1 / (numCoeffs * 2);
+        float i = 1 / (numCoeffsVSOutput * 2);
         float shCoeffs[15];
         float maxCoeff = 0.0;
-        for(int j=0; j < numCoeffs; j++){
+        for(int j=0; j < numCoeffsVSOutput; j++){
             shCoeffs[j] = rescale(
                 texture(
                     texture0,
-                    vec2(i + j / numCoeffs, tcoordVCVSOutput.y)).x,
+                    vec2(i + j / numCoeffsVSOutput, tcoordVCVSOutput.y)).x,
                     0, 1, minmaxVSOutput.x, minmaxVSOutput.y
             );// /abs(minmaxVSOutput.y);
         }
@@ -361,14 +372,14 @@ if __name__ == "__main__":
         // TODO: Move out of the function
         #define SH_COUNT 15
 
-        float i = 1 / (numCoeffs * 2);
+        float i = 1 / (numCoeffsVSOutput * 2);
         float shCoeffs[15];
         float maxCoeff = 0.0;
-        for(int j=0; j < numCoeffs; j++){
+        for(int j=0; j < numCoeffsVSOutput; j++){
             shCoeffs[j] = rescale(
                 texture(
                     texture0,
-                    vec2(i + j / numCoeffs, tcoordVCVSOutput.y)).x,
+                    vec2(i + j / numCoeffsVSOutput, tcoordVCVSOutput.y)).x,
                     0, 1, minmaxVSOutput.x, minmaxVSOutput.y
             );// /abs(minmaxVSOutput.y);
         }
@@ -392,7 +403,7 @@ if __name__ == "__main__":
         // OPTION 2
         float psiMin = 0.0;
         float psiMax = 0.0;
-        for (int j = 0; j < numCoeffs; j++) {
+        for (int j = 0; j < numCoeffsVSOutput; j++) {
             float absCoeff = abs(shCoeffs[j]); // Take absolute value of each coefficient
             psiMax += absCoeff; // Upper bound estimate
             psiMin -= absCoeff; // Lower bound estimate
@@ -404,7 +415,7 @@ if __name__ == "__main__":
         // OPTION 1
         float maxCoeff = 0.0;
         float minCoeff = 0.0;
-        for (int i = 0; i < numCoeffs; i++) {
+        for (int i = 0; i < numCoeffsVSOutput; i++) {
             maxCoeff += abs(shCoeffs[i]);
         }
         if (maxCoeff > 0.0) {
