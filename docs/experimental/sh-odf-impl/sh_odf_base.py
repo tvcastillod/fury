@@ -155,10 +155,9 @@ if __name__ == "__main__":
     fs_defs = "#define PI 3.1415926535898"
 
     fs_unifs = """
+    uniform mat4 MCVCMatrix;
     uniform float psiMin = 99999.0;
     uniform float psiMax = -99999.0;
-    uniform mat4 MCVCMatrix;
-    uniform samplerCube texture_0;
     """
 
     fs_vs_vars = """
@@ -174,51 +173,15 @@ if __name__ == "__main__":
     coeffs_norm = import_fury_shader(os.path.join("utils", "minmax_norm.glsl"))
 
     # Functions needed to calculate the associated Legendre polynomial
-    factorial = """
-    int factorial(int v)
-    {
-        int t = 1;
-        for(int i = 2; i <= v; i++)
-        {
-            t *= i;
-        }
-        return t;
-    }
-    """
+    factorial = import_fury_shader(os.path.join("utils", "factorial.glsl"))
 
     # Adapted from https://patapom.com/blog/SHPortal/
     # "Evaluate an Associated Legendre Polynomial P(l,m,x) at x
     # For more, see “Numerical Methods in C: The Art of Scientific Computing”,
     # Cambridge University Press, 1992, pp 252-254"
-    legendre_polys = """
-    float P(int l, int m, float x )
-    {
-        float pmm = 1;
-
-        float somx2 = sqrt((1 - x) * (1 + x));
-        float fact = 1;
-        for (int i=1; i<=m; i++) {
-            pmm *= -fact * somx2;
-            fact += 2;
-        }
-
-        if( l == m )
-            return pmm;
-
-        float pmmp1 = x * (2 * m + 1) * pmm;
-        if(l == m + 1)
-            return pmmp1;
-
-        float pll = 0;
-        for (float ll=m + 2; ll<=l; ll+=1) {
-            pll = ((2 * ll - 1) * x * pmmp1 - (ll + m - 1) * pmm) / (ll - m);
-            pmm = pmmp1;
-            pmmp1 = pll;
-        }
-
-        return pll;
-    }
-    """
+    assoc_legendre_poly = import_fury_shader(
+        os.path.join("sdf", "assoc_legendre_poly.frag")
+    )
 
     norm_const = """
     float K(int l, int m)
@@ -235,7 +198,7 @@ if __name__ == "__main__":
         vec3 ns = normalize(s);
         float thetax = ns.z;
         float phi = atan(ns.y, ns.x);
-        float v = K(l, abs(m)) * P(l, abs(m), thetax);
+        float v = K(l, abs(m)) * calcAssocLegendrePoly(l, abs(m), thetax);
         if(m != 0)
             v *= sqrt(2);
         if(m > 0)
@@ -512,7 +475,7 @@ if __name__ == "__main__":
 
     # fmt: off
     fs_dec = compose_shader([
-        fs_defs, fs_unifs, fs_vs_vars, coeffs_norm, factorial, legendre_polys,
+        fs_defs, fs_unifs, fs_vs_vars, coeffs_norm, factorial, assoc_legendre_poly,
         norm_const, spherical_harmonics, sdf_map, cast_ray,
         central_diffs_normals, linear_to_srgb, srgb_to_linear,
         linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap, blinn_phong_model
