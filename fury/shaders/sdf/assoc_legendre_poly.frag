@@ -25,7 +25,7 @@ float calcAssocLegendrePoly(int l, int m, float x)
 
     // Calculate P(l, m, x) using recurrence relation for l > m + 1
     for (int lIndex = m + 2; lIndex <= l; ++lIndex) {
-        legendrePlm = ((2.0 * float(lIndex) - 1.0) * x * prevPmmPlus1 - (float(lIndex) + m - 1.0) * prevPmm) / (float(lIndex) - m);
+        legendrePlm = ((2.0 * lIndex - 1.0) * x * prevPmmPlus1 - (lIndex + m - 1.0) * prevPmm) / (lIndex - m);
         prevPmm = prevPmmPlus1;
         prevPmmPlus1 = legendrePlm;
     }

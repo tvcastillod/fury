@@ -173,6 +173,7 @@ if __name__ == "__main__":
     coeffs_norm = import_fury_shader(os.path.join("utils", "minmax_norm.glsl"))
 
     # Functions needed to calculate the associated Legendre polynomial
+    # TODO: Precompute factorial values
     factorial = import_fury_shader(os.path.join("utils", "factorial.glsl"))
 
     # Adapted from https://patapom.com/blog/SHPortal/
@@ -183,14 +184,7 @@ if __name__ == "__main__":
         os.path.join("sdf", "assoc_legendre_poly.frag")
     )
 
-    norm_const = """
-    float K(int l, int m)
-    {
-        float n = (2 * l + 1) * factorial(l - m);
-        float d = 4 * PI * factorial(l + m);
-        return sqrt(n / d);
-    }
-    """
+    norm_fact = import_fury_shader(os.path.join("sdf", "sh_norm_factor.frag"))
 
     spherical_harmonics = """
     float SH(int l, int m, in vec3 s)
@@ -198,7 +192,7 @@ if __name__ == "__main__":
         vec3 ns = normalize(s);
         float thetax = ns.z;
         float phi = atan(ns.y, ns.x);
-        float v = K(l, abs(m)) * calcAssocLegendrePoly(l, abs(m), thetax);
+        float v = calculateKFactor(l, abs(m)) * calcAssocLegendrePoly(l, abs(m), thetax);
         if(m != 0)
             v *= sqrt(2);
         if(m > 0)
@@ -476,7 +470,7 @@ if __name__ == "__main__":
     # fmt: off
     fs_dec = compose_shader([
         fs_defs, fs_unifs, fs_vs_vars, coeffs_norm, factorial, assoc_legendre_poly,
-        norm_const, spherical_harmonics, sdf_map, cast_ray,
+        norm_fact, spherical_harmonics, sdf_map, cast_ray,
         central_diffs_normals, linear_to_srgb, srgb_to_linear,
         linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap, blinn_phong_model
     ])
