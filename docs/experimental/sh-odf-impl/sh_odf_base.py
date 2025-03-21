@@ -194,44 +194,6 @@ if __name__ == "__main__":
 
     sdf_map = """
     /*
-    def fibonacci_sphere(samples=1000):
-
-    points = []
-    phi = math.pi * (math.sqrt(5.) - 1.)  # golden angle in radians
-
-    for i in range(samples):
-        y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
-        radius = math.sqrt(1 - y * y)  # radius at y
-
-        theta = phi * i  # golden angle increment
-
-        x = math.cos(theta) * radius
-        z = math.sin(theta) * radius
-
-        points.append((x, y, z))
-
-    return points
-
-    const int SIZE = 100;
-    void fibonacci_sphere(out vec3 result[SIZE]){
-
-        vec3 points[SIZE];
-        float phi = PI * (sqrt(5.) - 1.);  // golden angle in radians
-
-        for(int i=0; i < SIZE; i++){
-            float y = 1 - (i / float(SIZE - 1)) * 2;  // y goes from 1 to -1
-            float radius = sqrt(1 - y * y);  // radius at y
-
-            float theta = phi * i; // golden angle increment
-
-            float x = cos(theta) * radius;
-            float z = sin(theta) * radius;
-
-            points[i] = normalize(vec3(x, y, z));
-        }
-        result = points;
-    }
-
     vec3 map_max( in vec3 p )
     {
         p = p - centerMCVSOutput;
@@ -245,9 +207,6 @@ if __name__ == "__main__":
 
         d=length(p00);
         n=p00 / d;
-
-        // TODO: Move out of the function
-        #define SH_COUNT 15
 
         float i = 1 / (numCoeffsVSOutput * 2);
         float shCoeffs[15];
@@ -282,22 +241,6 @@ if __name__ == "__main__":
         res=s;
         return vec3(res.x, .5 + .5 * res.y, res.z);
     }
-
-    float get_max() {
-        vec3 points[SIZE];
-        fibonacci_sphere(points);
-        float sf = 0.0;
-        float max_value = 0.0;
-        for(int j=0; j < SIZE; j++){
-            sf = map_max(points[j]).x;
-            if (sf > max_value){
-                max_value = sf;
-            }
-        }
-        return max_value;
-    }
-
-    float MAX_SF = get_max();
     */
 
     vec3 map( in vec3 p )
@@ -313,9 +256,6 @@ if __name__ == "__main__":
 
         d=length(p00);
         n=p00 / d;
-
-        // TODO: Move out of the function
-        #define SH_COUNT 15
 
         float i = 1 / (numCoeffsVSOutput * 2);
         float shCoeffs[15];
