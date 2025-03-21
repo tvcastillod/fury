@@ -181,28 +181,16 @@ if __name__ == "__main__":
     # For more, see “Numerical Methods in C: The Art of Scientific Computing”,
     # Cambridge University Press, 1992, pp 252-254"
     assoc_legendre_poly = import_fury_shader(
-        os.path.join("sdf", "assoc_legendre_poly.frag")
+        os.path.join("sdf", "odf", "assoc_legendre_poly.frag")
     )
 
-    norm_fact = import_fury_shader(os.path.join("sdf", "sh_norm_factor.frag"))
+    norm_fact = import_fury_shader(
+        os.path.join("sdf", "odf", "sh_norm_factor.frag")
+    )
 
-    spherical_harmonics = """
-    float SH(int l, int m, in vec3 s)
-    {
-        vec3 ns = normalize(s);
-        float thetax = ns.z;
-        float phi = atan(ns.y, ns.x);
-        float v = calculateKFactor(l, abs(m)) * calcAssocLegendrePoly(l, abs(m), thetax);
-        if(m != 0)
-            v *= sqrt(2);
-        if(m > 0)
-            v *= sin(m * phi);
-        if(m < 0)
-            v *= cos(-m * phi);
-
-        return v;
-    }
-    """
+    spherical_harmonics = import_fury_shader(
+        os.path.join("sdf", "odf", "sh_function.frag")
+    )
 
     sdf_map = """
     /*
@@ -272,21 +260,21 @@ if __name__ == "__main__":
                     0, 1, minmaxVSOutput.x, minmaxVSOutput.y
             );// /abs(minmaxVSOutput.y);
         }
-        r = shCoeffs[0] * SH(0, 0, n);
-        r += shCoeffs[1] * SH(2, -2, n);
-        r += shCoeffs[2] * SH(2, -1, n);
-        r += shCoeffs[3] * SH(2, 0, n);
-        r += shCoeffs[4] * SH(2, 1, n);
-        r += shCoeffs[5] * SH(2, 2, n);
-        r += shCoeffs[6] * SH(4, -4, n);
-        r += shCoeffs[7] * SH(4, -3, n);
-        r += shCoeffs[8] * SH(4, -2, n);
-        r += shCoeffs[9] * SH(4, -1, n);
-        r += shCoeffs[10] * SH(4, 0, n);
-        r += shCoeffs[11] * SH(4, 1, n);
-        r += shCoeffs[12] * SH(4, 2, n);
-        r += shCoeffs[13] * SH(4, 3, n);
-        r += shCoeffs[14] * SH(4, 4, n);
+        r = shCoeffs[0] * calculateSH(0, 0, n);
+        r += shCoeffs[1] * calculateSH(2, -2, n);
+        r += shCoeffs[2] * calculateSH(2, -1, n);
+        r += shCoeffs[3] * calculateSH(2, 0, n);
+        r += shCoeffs[4] * calculateSH(2, 1, n);
+        r += shCoeffs[5] * calculateSH(2, 2, n);
+        r += shCoeffs[6] * calculateSH(4, -4, n);
+        r += shCoeffs[7] * calculateSH(4, -3, n);
+        r += shCoeffs[8] * calculateSH(4, -2, n);
+        r += shCoeffs[9] * calculateSH(4, -1, n);
+        r += shCoeffs[10] * calculateSH(4, 0, n);
+        r += shCoeffs[11] * calculateSH(4, 1, n);
+        r += shCoeffs[12] * calculateSH(4, 2, n);
+        r += shCoeffs[13] * calculateSH(4, 3, n);
+        r += shCoeffs[14] * calculateSH(4, 4, n);
 
         //r *= scaleVSOutput * .9;
         // ================================================================
@@ -340,21 +328,21 @@ if __name__ == "__main__":
                     0, 1, minmaxVSOutput.x, minmaxVSOutput.y
             );// /abs(minmaxVSOutput.y);
         }
-        r = shCoeffs[0] * SH(0, 0, n);
-        r += shCoeffs[1]* SH(2, -2, n);
-        r += shCoeffs[2]* SH(2, -1, n);
-        r += shCoeffs[3] * SH(2, 0, n);
-        r += shCoeffs[4] * SH(2, 1, n);
-        r += shCoeffs[5] * SH(2, 2, n);
-        r += shCoeffs[6] * SH(4, -4, n);
-        r += shCoeffs[7] * SH(4, -3, n);
-        r += shCoeffs[8]* SH(4, -2, n);
-        r += shCoeffs[9]* SH(4, -1, n);
-        r += shCoeffs[10]* SH(4, 0, n);
-        r += shCoeffs[11]* SH(4, 1, n);
-        r += shCoeffs[12]* SH(4, 2, n);
-        r += shCoeffs[13]* SH(4, 3, n);
-        r += shCoeffs[14]* SH(4, 4, n);
+        r = shCoeffs[0] * calculateSH(0, 0, n);
+        r += shCoeffs[1]* calculateSH(2, -2, n);
+        r += shCoeffs[2]* calculateSH(2, -1, n);
+        r += shCoeffs[3] * calculateSH(2, 0, n);
+        r += shCoeffs[4] * calculateSH(2, 1, n);
+        r += shCoeffs[5] * calculateSH(2, 2, n);
+        r += shCoeffs[6] * calculateSH(4, -4, n);
+        r += shCoeffs[7] * calculateSH(4, -3, n);
+        r += shCoeffs[8]* calculateSH(4, -2, n);
+        r += shCoeffs[9]* calculateSH(4, -1, n);
+        r += shCoeffs[10]* calculateSH(4, 0, n);
+        r += shCoeffs[11]* calculateSH(4, 1, n);
+        r += shCoeffs[12]* calculateSH(4, 2, n);
+        r += shCoeffs[13]* calculateSH(4, 3, n);
+        r += shCoeffs[14]* calculateSH(4, 4, n);
 
         /*
         // OPTION 2
