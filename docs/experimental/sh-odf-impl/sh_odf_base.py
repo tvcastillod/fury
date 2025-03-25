@@ -154,8 +154,6 @@ if __name__ == "__main__":
 
     fs_def_pi = "#define PI 3.1415926535898"
 
-    fs_def_max_num_coeffs = f"#define MAX_NUM_COEFFS {max_num_coeffs}"
-
     fs_def_text_bracket = f"#define TEXT_BRACKET {1 / (2 * max_num_coeffs)}"
 
     fs_unifs = """
@@ -199,45 +197,40 @@ if __name__ == "__main__":
     sdf_map = """
     vec3 map(in vec3 p)
     {
-        vec3 p00 = p - centerMCVSOutput;
+        vec3 centeredPnt = p - centerMCVSOutput;
 
-        float d = length(p00);
+        float pntLen = length(centeredPnt);
 
-        vec3 n = p00 / d;
+        vec3 normPnt = centeredPnt / pntLen;
 
-        float shCoeffs[MAX_NUM_COEFFS];
+        int l = 0;  // Order
+        int m = 0;  // Degree
+        float r = 0.0;
         for(int i = 0; i < numCoeffsVSOutput; i++){
+            // TODO: Move to vertex shader
             float textVal = texture(
                 texture0,
                 vec2(i / numCoeffsVSOutput + TEXT_BRACKET, tcoordVCVSOutput.y)
             ).x;
+            // TODO: Move to vertex shader and output to fragment shader
             float rescaledSHCoeff = rescale(
                 textVal, 0, 1, minmaxVSOutput.x, minmaxVSOutput.y
             );
-            shCoeffs[i] = rescaledSHCoeff;
-        }
+            // TODO: Retreive from vertex shader
+            r += rescaledSHCoeff * calculateSH(l, m, normPnt);
 
-        float r = 0.0;
-        r += shCoeffs[0] * calculateSH(0, 0, n);
-        r += shCoeffs[1] * calculateSH(2, -2, n);
-        r += shCoeffs[2] * calculateSH(2, -1, n);
-        r += shCoeffs[3] * calculateSH(2, 0, n);
-        r += shCoeffs[4] * calculateSH(2, 1, n);
-        r += shCoeffs[5] * calculateSH(2, 2, n);
-        r += shCoeffs[6] * calculateSH(4, -4, n);
-        r += shCoeffs[7] * calculateSH(4, -3, n);
-        r += shCoeffs[8] * calculateSH(4, -2, n);
-        r += shCoeffs[9] * calculateSH(4, -1, n);
-        r += shCoeffs[10] * calculateSH(4, 0, n);
-        r += shCoeffs[11] * calculateSH(4, 1, n);
-        r += shCoeffs[12] * calculateSH(4, 2, n);
-        r += shCoeffs[13] * calculateSH(4, 3, n);
-        r += shCoeffs[14] * calculateSH(4, 4, n);
+            if (m == l) {
+                l += 2;
+                m = -l;
+            } else {
+                m++;
+            }
+        }
 
         r /= maxfODFsVSOutput;
         r *= scaleVSOutput * .9;
 
-        vec3 res = vec3(d - abs(r), sign(r), d);
+        vec3 res = vec3(pntLen - abs(r), sign(r), pntLen);
         return vec3(res.x, .5 + .5 * res.y, res.z);
     }
     """
@@ -319,11 +312,11 @@ if __name__ == "__main__":
 
     # fmt: off
     fs_dec = compose_shader([
-        fs_def_pi, fs_def_max_num_coeffs, fs_def_text_bracket, fs_unifs,
-        fs_vs_vars, coeffs_norm, factorial, assoc_legendre_poly, norm_fact,
-        spherical_harmonics, sdf_map, cast_ray, central_diffs_normals,
-        linear_to_srgb, srgb_to_linear, linear_rgb_to_srgb, srgb_to_linear_rgb,
-        tonemap, blinn_phong_model
+        fs_def_pi, fs_def_text_bracket, fs_unifs, fs_vs_vars, coeffs_norm,
+        factorial, assoc_legendre_poly, norm_fact, spherical_harmonics,
+        sdf_map, cast_ray, central_diffs_normals, linear_to_srgb,
+        srgb_to_linear, linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap,
+        blinn_phong_model
     ])
     # fmt: on
 
