@@ -141,7 +141,7 @@ if __name__ == "__main__":
     texture.Update()
 
     odf_actor.GetProperty().SetTexture("texture0", texture)
-
+    n_coeffs = coeffs.shape[-1]
     # TODO: Set int uniform
     odf_actor.GetShaderProperty().GetFragmentCustomUniforms().SetUniformf(
         "numCoeffs", 15
@@ -266,7 +266,26 @@ if __name__ == "__main__":
     }
     """
 
-    sdf_map = """
+    def_coeff = f"#define NCOEFF {n_coeffs}"
+
+    sh_degree_list = '''r = shCoeffs[0] * SH(0, 0, n);
+        r += shCoeffs[1]* SH(2, -2, n);
+        r += shCoeffs[2]* SH(2, -1, n);
+        r += shCoeffs[3] * SH(2, 0, n);
+        r += shCoeffs[4] * SH(2, 1, n);
+        r += shCoeffs[5] * SH(2, 2, n);
+        r += shCoeffs[6] * SH(4, -4, n);
+        r += shCoeffs[7] * SH(4, -3, n);
+        r += shCoeffs[8]* SH(4, -2, n);
+        r += shCoeffs[9]* SH(4, -1, n);
+        r += shCoeffs[10]* SH(4, 0, n);
+        r += shCoeffs[11]* SH(4, 1, n);
+        r += shCoeffs[12]* SH(4, 2, n);
+        r += shCoeffs[13]* SH(4, 3, n);
+        r += shCoeffs[14]* SH(4, 4, n);
+    '''
+
+    sdf_map_1 = """
 
     /*
     def fibonacci_sphere(samples=1000):
@@ -382,9 +401,9 @@ if __name__ == "__main__":
         d=length(p00);
         n=p00 / d;
         // ================================================================
-        #define SH_COUNT 15
+
         float i = 1 / (numCoeffs * 2);
-        float shCoeffs[15];
+        float shCoeffs[NCOEFF];
         float maxCoeff = 0.0;
         for(int j=0; j < numCoeffs; j++){
             shCoeffs[j] = rescale(
@@ -394,22 +413,9 @@ if __name__ == "__main__":
                     0, 1, minmaxVSOutput.x, minmaxVSOutput.y
             );// /abs(minmaxVSOutput.y);
         }
-        r = shCoeffs[0] * SH(0, 0, n);
-        r += shCoeffs[1]* SH(2, -2, n);
-        r += shCoeffs[2]* SH(2, -1, n);
-        r += shCoeffs[3] * SH(2, 0, n);
-        r += shCoeffs[4] * SH(2, 1, n);
-        r += shCoeffs[5] * SH(2, 2, n);
-        r += shCoeffs[6] * SH(4, -4, n);
-        r += shCoeffs[7] * SH(4, -3, n);
-        r += shCoeffs[8]* SH(4, -2, n);
-        r += shCoeffs[9]* SH(4, -1, n);
-        r += shCoeffs[10]* SH(4, 0, n);
-        r += shCoeffs[11]* SH(4, 1, n);
-        r += shCoeffs[12]* SH(4, 2, n);
-        r += shCoeffs[13]* SH(4, 3, n);
-        r += shCoeffs[14]* SH(4, 4, n);
+    """
 
+    sdf_map_2="""
         /*
         // OPTION 2
         float psiMin = 0.0;
@@ -444,6 +450,10 @@ if __name__ == "__main__":
         return vec3(res.x, .5 + .5 * res.y, res.z);
     }
     """
+
+    sdf_map = sdf_map_1+"\n".join(sh_degree_list.splitlines()[:6])+sdf_map_2
+    print(sdf_map)
+    sdf_map = sdf_map_1+sh_degree_list+sdf_map_2
 
     cast_ray = """
     vec3 castRay(in vec3 ro, vec3 rd)
@@ -523,7 +533,7 @@ vec3 centralDiffsNormals(in vec3 p, float eps)
     # fmt: off
     fs_dec = compose_shader([
         fs_defs, fs_unifs, fs_vs_vars, coeffs_norm, factorial, legendre_polys,
-        norm_const, spherical_harmonics, sdf_map, cast_ray,
+        norm_const, spherical_harmonics, def_coeff, sdf_map, cast_ray,
         central_diffs_normals, linear_to_srgb, srgb_to_linear,
         linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap, blinn_phong_model
     ])
