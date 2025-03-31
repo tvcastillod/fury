@@ -195,7 +195,7 @@ if __name__ == "__main__":
     )
 
     sdf_map = """
-    vec3 map(in vec3 p)
+    vec3 map(vec3 p)
     {
         vec3 centeredPnt = p - centerMCVSOutput;
 
@@ -231,7 +231,7 @@ if __name__ == "__main__":
         r *= scaleVSOutput * .9;
 
         vec3 res = vec3(pntLen - abs(r), sign(r), pntLen);
-        return vec3(res.x, .5 + .5 * res.y, res.z);
+        return vec3(res.x, 0.5 * res.y + 0.5, res.z);
     }
     """
 
@@ -262,26 +262,16 @@ if __name__ == "__main__":
     }
     """
 
-    central_diffs_normals = """
-    /*
-    vec3 centralDiffsNormals(in vec3 p, float eps)
+    sdf_eval = """
+    float sdfEval(vec3 p)
     {
-        vec2 h = vec2(eps, 0);
-        return normalize(vec3(mapp(p + h.xyy) - mapp(p - h.xyy),
-                            mapp(p + h.yxy) - mapp(p - h.yxy),
-                            mapp(p + h.yyx) - mapp(p - h.yyx)));
-    }
-    */
-        vec3 centralDiffsNormals( in vec3 pos )
-    {
-        const vec2 eps = vec2(0.0001,0.0);
-
-        return normalize( vec3(
-            map(pos+eps.xyy).x - map(pos-eps.xyy).x,
-            map(pos+eps.yxy).x - map(pos-eps.yxy).x,
-            map(pos+eps.yyx).x - map(pos-eps.yyx).x ) );
+        return map(p).x;
     }
     """
+
+    central_diffs_normals = import_fury_shader(
+        os.path.join("sdf", "central_diffs.frag")
+    )
 
     # Applies the non-linearity that maps linear RGB to sRGB
     linear_to_srgb = import_fury_shader(
@@ -314,7 +304,7 @@ if __name__ == "__main__":
     fs_dec = compose_shader([
         fs_def_pi, fs_def_text_bracket, fs_unifs, fs_vs_vars, coeffs_norm,
         factorial, assoc_legendre_poly, norm_fact, spherical_harmonics,
-        sdf_map, cast_ray, central_diffs_normals, linear_to_srgb,
+        sdf_map, cast_ray, sdf_eval, central_diffs_normals, linear_to_srgb,
         srgb_to_linear, linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap,
         blinn_phong_model
     ])
@@ -337,10 +327,10 @@ if __name__ == "__main__":
 
     vec3 color = vec3(1.);
 
-    if(t.y > -.5)
+    if(t.y >= 0)
     {
         vec3 pos = ro - centerMCVSOutput + t.x * rd;
-        vec3 normal = centralDiffsNormals(pos);
+        vec3 normal = centralDiffsNormals(pos, 0.0001);
 
         /*
         float occ = clamp(2 * t.z, 0, 1);
