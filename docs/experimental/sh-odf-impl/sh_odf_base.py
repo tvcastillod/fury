@@ -158,8 +158,6 @@ if __name__ == "__main__":
 
     fs_unifs = """
     uniform mat4 MCVCMatrix;
-    uniform float psiMin = 99999.0;
-    uniform float psiMax = -99999.0;
     """
 
     fs_vs_vars = """
