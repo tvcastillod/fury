@@ -59,14 +59,9 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     sh_order = int((np.sqrt(8 * n_coeffs + 1) - 3) / 2)
 
     n_glyphs = coeffs.shape[0]
-<<<<<<< HEAD
-    sh = np.zeros((n_glyphs, 1, 1, 15))
-    for i in range(n_glyphs):
-=======
 
     sh = np.zeros((n_glyphs, 1, 1, n_coeffs))
     for i in range (n_glyphs):
->>>>>>> tania-sh_odf_sdf_exp
         sh[i, 0, 0, :] = coeffs[i, :]
 
     tensor_sf = sh_to_sf(
@@ -167,11 +162,6 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
         os.path.join("ray_tracing", "odf", "sh_function.glsl")
     )
 
-<<<<<<< HEAD
-    sdf_map = import_fury_shader(
-        os.path.join("sdf", "sd_spherical_harmonics.frag")
-    )
-=======
     sdf_map_1 = """
     vec3 map( in vec3 p )
     {
@@ -254,7 +244,6 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
 
     sdf_map = sdf_map_1 + "\n".join(sh_list.splitlines()[:n_coeffs]) + sdf_map_2
     #sdf_map = import_fury_shader(os.path.join("sdf", "sd_spherical_harmonics.#frag"))
->>>>>>> tania-sh_odf_sdf_exp
 
     cast_ray = import_fury_shader(
         os.path.join("ray_tracing", "odf", "sh_cast_ray.frag")
