@@ -55,11 +55,18 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
 
     sphere = get_sphere(name=sphere_type)
     sh_basis = "descoteaux07"
-    sh_order = 4
+    n_coeffs = coeffs.shape[-1]
+    sh_order = int((np.sqrt(8 * n_coeffs + 1) - 3) / 2)
 
     n_glyphs = coeffs.shape[0]
+<<<<<<< HEAD
     sh = np.zeros((n_glyphs, 1, 1, 15))
     for i in range(n_glyphs):
+=======
+
+    sh = np.zeros((n_glyphs, 1, 1, n_coeffs))
+    for i in range (n_glyphs):
+>>>>>>> tania-sh_odf_sdf_exp
         sh[i, 0, 0, :] = coeffs[i, :]
 
     tensor_sf = sh_to_sf(
@@ -93,9 +100,11 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
 
     odf_actor.GetProperty().SetTexture("texture0", texture)
 
+    def_coeff = f"#define NCOEFF {n_coeffs}"
+
     # TODO: Set int uniform
     odf_actor.GetShaderProperty().GetFragmentCustomUniforms().SetUniformf(
-        "numCoeffs", 15
+        "numCoeffs", n_coeffs
     )
 
     vs_dec = """
@@ -158,9 +167,94 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
         os.path.join("ray_tracing", "odf", "sh_function.glsl")
     )
 
+<<<<<<< HEAD
     sdf_map = import_fury_shader(
         os.path.join("sdf", "sd_spherical_harmonics.frag")
     )
+=======
+    sdf_map_1 = """
+    vec3 map( in vec3 p )
+    {
+        p = p - centerMCVSOutput;
+        vec3 p00 = p;
+
+        float r, d; vec3 n, s, res;
+
+        #define SHAPE (vec3(d-abs(r), sign(r),d))
+        d=length(p00);
+        n=p00 / d;
+        float i = 1 / (numCoeffs * 2);
+        float shCoeffs[NCOEFF];
+        float maxCoeff = 0.0;
+        for(int j=0; j < numCoeffs; j++){
+            shCoeffs[j] = rescale(
+                texture(
+                    texture0,
+                    vec2(i + j / numCoeffs, tcoordVCVSOutput.y)).x, 0, 1,
+                    minmaxVSOutput.x, minmaxVSOutput.y
+            );
+        }
+    """
+
+    sh_list = """r = shCoeffs[0] * SH(0, 0, n);
+        r += shCoeffs[1] * SH(2, -2, n);
+        r += shCoeffs[2] * SH(2, -1, n);
+        r += shCoeffs[3] * SH(2, 0, n);
+        r += shCoeffs[4] * SH(2, 1, n);
+        r += shCoeffs[5] * SH(2, 2, n);
+        r += shCoeffs[6] * SH(4, -4, n);
+        r += shCoeffs[7] * SH(4, -3, n);
+        r += shCoeffs[8] * SH(4, -2, n);
+        r += shCoeffs[9] * SH(4, -1, n);
+        r += shCoeffs[10] * SH(4, 0, n);
+        r += shCoeffs[11] * SH(4, 1, n);
+        r += shCoeffs[12] * SH(4, 2, n);
+        r += shCoeffs[13] * SH(4, 3, n);
+        r += shCoeffs[14] * SH(4, 4, n);
+        r += shCoeffs[15] * SH(6, -6, n);
+        r += shCoeffs[16] * SH(6, -5, n);
+        r += shCoeffs[17] * SH(6, -4, n);
+        r += shCoeffs[18] * SH(6, -3, n);
+        r += shCoeffs[19] * SH(6, -2, n);
+        r += shCoeffs[20] * SH(6, -1, n);
+        r += shCoeffs[21] * SH(6, 0, n);
+        r += shCoeffs[22] * SH(6, 1, n);
+        r += shCoeffs[23] * SH(6, 2, n);
+        r += shCoeffs[24] * SH(6, 3, n);
+        r += shCoeffs[25] * SH(6, 4, n);
+        r += shCoeffs[26] * SH(6, 5, n);
+        r += shCoeffs[27] * SH(6, 6, n);
+        r += shCoeffs[28] * SH(8, -8, n);
+        r += shCoeffs[29] * SH(8, -7, n);
+        r += shCoeffs[30] * SH(8, -6, n);
+        r += shCoeffs[31] * SH(8, -5, n);
+        r += shCoeffs[32] * SH(8, -4, n);
+        r += shCoeffs[33] * SH(8, -3, n);
+        r += shCoeffs[34] * SH(8, -2, n);
+        r += shCoeffs[35] * SH(8, -1, n);
+        r += shCoeffs[36] * SH(8, 0, n);
+        r += shCoeffs[37] * SH(8, 1, n);
+        r += shCoeffs[38] * SH(8, 2, n);
+        r += shCoeffs[39] * SH(8, 3, n);
+        r += shCoeffs[40] * SH(8, 4, n);
+        r += shCoeffs[41] * SH(8, 5, n);
+        r += shCoeffs[42] * SH(8, 6, n);
+        r += shCoeffs[43] * SH(8, 7, n);
+        r += shCoeffs[44] * SH(8, 8, n);
+    """
+    sdf_map_2 = """
+        r /= abs(sfmaxVSOutput);
+        r *= scaleVSOutput * .9;
+
+        s = SHAPE;
+        res=s;
+        return vec3(res.x, .5 + .5 * res.y, res.z);
+    }
+    """
+
+    sdf_map = sdf_map_1 + "\n".join(sh_list.splitlines()[:n_coeffs]) + sdf_map_2
+    #sdf_map = import_fury_shader(os.path.join("sdf", "sd_spherical_harmonics.#frag"))
+>>>>>>> tania-sh_odf_sdf_exp
 
     cast_ray = import_fury_shader(
         os.path.join("ray_tracing", "odf", "sh_cast_ray.frag")
@@ -208,7 +302,7 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     # fmt: off
     fs_dec = compose_shader([
         fs_defs, fs_unifs, fs_vs_vars, coeffs_norm, factorial, legendre_polys,
-        norm_const, spherical_harmonics, sdf_map, cast_ray,
+        norm_const, spherical_harmonics, def_coeff, sdf_map, cast_ray,
         central_diffs_normals, linear_to_srgb, srgb_to_linear,
         linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap, blinn_phong_model
     ])
