@@ -164,6 +164,7 @@ if __name__ == "__main__":
     flat in float numCoeffsVSOutput;
 
     in vec4 vertexMCVSOutput;
+    in vec3 camPosMCVSOutput;
     in vec3 centerMCVSOutput;
     in vec2 minmaxVSOutput;
     in float maxfODFsVSOutput;
@@ -245,12 +246,12 @@ if __name__ == "__main__":
 
         for(int i = 0; i < 2000; i++)
         {
-            if(h < .01 || t > maxd)
+            if(h < 0.01 || t > maxd)
                 break;
             vec3 res = map(ro + rd * t);
             h = res.x;
             m = res.yz;
-            t += h * .1;
+            t += h * 0.1;
         }
 
         if(t < maxd && t < res.x)
@@ -313,7 +314,7 @@ if __name__ == "__main__":
     sdf_frag_impl = """
     vec3 pnt = vertexMCVSOutput.xyz;
 
-    vec3 ro = -MCVCMatrix[3].xyz * mat3(MCVCMatrix);
+    vec3 ro = camPosMCVSOutput;
 
     vec3 rd = normalize(pnt - ro);
 
@@ -323,38 +324,46 @@ if __name__ == "__main__":
 
     vec3 t = castRay(ro, rd);
 
-    vec3 color = vec3(1.);
+    // Background color
+    //vec3 color = vec3(0.3) * clamp(1 - 0.4 * t.y, 0, 1);
+    vec3 color = vec3(1);
 
     if(t.y >= 0)
     {
         vec3 pos = ro - centerMCVSOutput + t.x * rd;
         vec3 normal = centralDiffsNormals(pos, 0.0001);
 
-        /*
-        float occ = clamp(2 * t.z, 0, 1);
-        //float sss = pow(clamp(1 + dot(normal, rd), 0, 1), 1);
-        float sss = clamp(1 + dot(normal, rd), 0, 1);
-
-        vec3 lin  = 2.5 * occ * vec3(1) * (.6 + .4 * normal.y);
-        lin += 1 * sss * vec3(1, .95, .7) * occ;
-
-        vec3 mater = .5 * mix(vec3(1, 1, 0), vec3(1), t.y);
-
-        fragOutput0 = vec4(vec3(1, 0, 0) * lin, opacity);
-        */
         vec3 colorDir = srgbToLinearRgb(abs(normalize(pos)));
-        float attenuation = dot(ld, normal);
-        color = blinnPhongIllumModel(
-            //attenuation, lightColor0, diffuseColor, specularPower,
+
+        float attenuation = clamp(dot(ld, normal), 0, 1);
+
+        vec3 mate = blinnPhongIllumModel(
             attenuation, lightColor0, colorDir, specularPower,
-            specularColor, ambientColor);
+            specularColor, colorDir);
+
+        // Material
+        // mix(color1, color2, t.y) to use sign to select between two colors
+        //vec3 mate = 0.5 * mix(vec3(1, 0.6, 0.15), vec3(0.2, 0.4, 0.5), t.y);
+
+        float occ = clamp(2 * t.z, 0, 1);
+
+        float sss = pow(clamp(1 + dot(normal, rd), 0, 1), 1);
+        //float sss = clamp(1 + dot(normal, rd), 0, 1);
+
+        // Lighting
+        vec3 lin  = 2.5 * occ * vec3(1) * (0.4 * normal.y + 0.6);
+        lin += 1 * sss * vec3(1, 0.95, 0.7) * occ;
+
+        color = mate * lin;
+        //color = mate;
+        //color = colorDir * lin;
+        //color = colorDir;
     }
     else
     {
         discard;
     }
 
-    //fragOutput0 = vec4(linearToSrgb(color * colorDir), opacity);
     vec3 outColor = linearRgbToSrgb(tonemap(color));
     fragOutput0 = vec4(outColor, opacity);
     """
