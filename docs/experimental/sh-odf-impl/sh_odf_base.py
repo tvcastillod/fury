@@ -118,13 +118,11 @@ if __name__ == "__main__":
 
     odf_actor.GetProperty().SetTexture("texture0", texture)
 
-    odf_actor.GetShaderProperty().GetFragmentCustomUniforms().SetUniformf(
+    odf_actor.GetShaderProperty().GetVertexCustomUniforms().SetUniformf(
         "shDegree", viz_sh_degree
     )
 
     vs_dec = """
-    uniform float shDegree;
-
     in vec3 center;
     in vec2 minmax;
     in float maxfODFs;
@@ -151,6 +149,11 @@ if __name__ == "__main__":
     """
 
     shader_to_actor(odf_actor, "vertex", decl_code=vs_dec, impl_code=vs_impl)
+
+    max_ray_steps = 250  # TODO: Turn to actor param
+    odf_actor.GetShaderProperty().GetFragmentCustomUniforms().SetUniformi(
+        "maxRaySteps", max_ray_steps
+    )
 
     fs_def_pi = "#define PI 3.1415926535898"
 
@@ -244,7 +247,7 @@ if __name__ == "__main__":
         float t = 0;
         vec2  m = vec2(-1);
 
-        for(int i = 0; i < 2000; i++)
+        for(int i = 0; i < maxRaySteps; i++)
         {
             if(h < 0.01 || t > maxd)
                 break;
