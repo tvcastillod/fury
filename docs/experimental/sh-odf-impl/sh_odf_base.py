@@ -324,8 +324,6 @@ if __name__ == "__main__":
 
     vec3 t = castRay(ro, rd);
 
-    // Background color
-    //vec3 color = vec3(0.3) * clamp(1 - 0.4 * t.y, 0, 1);
     vec3 color = vec3(1);
 
     if(t.y >= 0)
