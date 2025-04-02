@@ -238,7 +238,7 @@ if __name__ == "__main__":
     """
 
     cast_ray = """
-    vec3 castRay(in vec3 ro, vec3 rd)
+    vec3 castRay(in vec3 ro, vec3 rd, int maxSteps)
     {
         vec3 res = vec3(1e10, -1, 1);
 
@@ -247,7 +247,7 @@ if __name__ == "__main__":
         float t = 0;
         vec2  m = vec2(-1);
 
-        for(int i = 0; i < maxRaySteps; i++)
+        for(int i = 0; i < maxSteps; i++)
         {
             if(h < 0.01 || t > maxd)
                 break;
@@ -325,7 +325,7 @@ if __name__ == "__main__":
 
     ro += pnt - ro;
 
-    vec3 t = castRay(ro, rd);
+    vec3 t = castRay(ro, rd, maxRaySteps);
 
     vec3 color = vec3(1);
 
