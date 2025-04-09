@@ -2,7 +2,6 @@ import os
 
 import numpy as np
 
-from dipy.data import get_sphere
 from fury import actor
 from fury.lib import FloatArray, Texture
 from fury.shaders import (
@@ -279,9 +278,19 @@ def sh_to_sf(sh, sphere, sh_order_max=4, basis_type=None,
     return sf
 
 class Sphere:
-    vertices = None
-    faces = None
+    theta = None
+    phi = None
 
+def compute_theta_phi(vertices):
+    vertices = np.array(vertices)
+    x, y, z = vertices[:, 0], vertices[:, 1], vertices[:, 2]
+    r = np.linalg.norm(vertices, axis=1)
+
+    theta = np.arccos(np.clip(z / r, -1.0, 1.0))
+    phi = np.arctan2(y, x)
+    phi = np.mod(phi, 2 * np.pi)  # normalize phi to [0, 2π]
+
+    return theta, phi
 
 def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     """
@@ -316,25 +325,22 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     big_minmax = np.repeat(minmax, 8, axis=0)
     attribute_to_actor(odf_actor, big_minmax, "minmax")
 
-    sphere = get_sphere(sphere_type)
-    '''
-    vertices, faces = prim_sphere(name="repulsion100", gen_faces=True)
+    #sphere = get_sphere(sphere_type)
+
+    vertices, _ = prim_sphere(name="repulsion100", gen_faces=True)
+    theta, phi = compute_theta_phi(vertices)
     sphere = Sphere()
-    sphere.vertices = vertices
-    sphere.faces = faces
-    '''
+    sphere.theta = theta
+    sphere.phi = phi
+
     sh_basis = "descoteaux07"
     n_coeffs = coeffs.shape[-1]
     sh_order = int((np.sqrt(8 * n_coeffs + 1) - 3) / 2)
 
     n_glyphs = coeffs.shape[0]
 
-    sh = np.zeros((n_glyphs, 1, 1, n_coeffs))
-    for i in range (n_glyphs):
-        sh[i, 0, 0, :] = coeffs[i, :]
-
     tensor_sf = sh_to_sf(
-        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
+        coeffs, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
     )
     tensor_sf_max = abs(tensor_sf.reshape(n_glyphs, 100)).max(axis=1)
 

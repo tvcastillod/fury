@@ -1057,6 +1057,7 @@ def odf_slicer(
         valid_odf_mask = np.logical_and(valid_odf_mask, mask)
     indices = np.nonzero(valid_odf_mask)
     shape = odfs.shape[:-1]
+    print(f'shape:{shape} - {odfs.shape} - {odfs.shape[-1]}')
 
     if sphere is None:
         # Use a default sphere with 100 vertices

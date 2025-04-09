@@ -106,8 +106,9 @@ if __name__ == "__main__":
     sh[3, 0, 0, :] = coeffs_b2[3, :]
 
     tensor_sf = sh_to_sf(
-        coeffs, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
+        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
     )
+
     odf_slicer_actor = actor.odf_slicer(tensor_sf, sphere=sphere, norm=True)
 
     show_man.scene.add(odf_slicer_actor)
