@@ -41,8 +41,6 @@ if __name__ == "__main__":
             -0.0416776277125, -1.0772529840469,  0.1423762738705
         ]
     ])
-<<<<<<< HEAD
-=======
 
     coeffs_b2 = np.array([
         [
@@ -63,7 +61,6 @@ if __name__ == "__main__":
         ]
     ])
 
->>>>>>> tania-sh_odf_sdf_exp
     # fmt: on
 
     centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0], [3, -1, 0]])
@@ -119,6 +116,7 @@ if __name__ == "__main__":
     tensor_sf = sh_to_sf(
         sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
     )
+
     odf_slicer_actor = actor.odf_slicer(tensor_sf, sphere=sphere, norm=True)
 
     show_man.scene.add(odf_slicer_actor)

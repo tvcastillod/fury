@@ -1,8 +1,6 @@
 import os
 
 import numpy as np
-from dipy.data import get_sphere
-from dipy.reconst.shm import sh_to_sf
 
 from fury import actor
 from fury.lib import FloatArray, Texture
@@ -13,12 +11,85 @@ from fury.shaders import (
     shader_to_actor,
 )
 from fury.texture.utils import uv_calculations
-from fury.utils import (
-    minmax_norm,
-    numpy_to_vtk_image_data,
-    set_polydata_tcoords,
-)
+from fury.utils import minmax_norm, numpy_to_vtk_image_data, set_polydata_tcoords
+import scipy.special as sps
+from fury.primitive import prim_sphere
 
+
+def sh_to_sf(sh_coeff, sphere, sh_order_max=4, basis_type=None):
+    """Spherical harmonics (SH) to spherical function (SF).
+
+    Parameters
+    ----------
+    sh : ndarray
+        SH coefficients representing a spherical function.
+    sphere : Sphere
+        The points on which to sample the spherical function.
+    sh_order_max : int, optional
+        Maximum SH order (l) in the SH fit.  For ``sh_order_max``, there will be
+        ``(sh_order_max + 1) * (sh_order_max + 2) / 2`` SH coefficients for a
+        symmetric basis and ``(sh_order_max + 1) * (sh_order_max + 1)``
+        coefficients for a full SH basis.
+    basis_type : {None, 'descoteaux07'}, optional
+        ``descoteaux07`` for the Descoteaux 2007 [1]_ basis,
+        (``None`` defaults to ``descoteaux07``).
+
+    Returns
+    -------
+    sf : ndarray
+         Spherical function values on the ``sphere``.
+
+    References
+    ----------
+    .. [1] Descoteaux, M., Angelino, E., Fitzgibbons, S. and Deriche, R.
+           Regularized, Fast, and Robust Analytical Q-ball Imaging.
+           Magn. Reson. Med. 2007;58:497-510.
+    """
+
+    # Calculate the order (``l``) and phase_factor (``m``) of all the symmetric
+    # spherical harmonics of order less then or equal to ``sh_order_max``.
+    l_range = np.arange(0, sh_order_max + 1, 2, dtype=int)
+    ncoef = int((sh_order_max + 2) * (sh_order_max + 1) // 2)
+
+    l_value = np.repeat(l_range, l_range * 2 + 1)
+    offset = 0
+    m_value = np.empty(ncoef, 'int')
+    for ii in l_range:
+        m_value[offset:offset + 2 * ii + 1] = np.arange(-ii, ii + 1)
+        offset = offset + 2 * ii + 1
+
+    phi = np.reshape(sphere.phi, [-1, 1])
+    theta = np.reshape(sphere.theta, [-1, 1])
+
+    # Calculate Spherical Harmonics
+    sh = sps.sph_harm(m_value, l_value, phi, theta, dtype=complex)
+
+    # Compute real spherical harmonics as in Descoteaux et al. 2007 [1]_,
+    # where the real harmonic $Y^m_l$ is defined to be:
+    #    Imag($Y^m_l$) * sqrt(2)      if m > 0
+    #    $Y^0_l$                      if m = 0
+    #    Real($Y^m_l$) * sqrt(2)      if m < 0
+    real_sh = np.where(m_value > 0, sh.imag, sh.real)
+    real_sh *= np.where(m_value == 0, 1., np.sqrt(2))
+
+    sf = np.dot(sh_coeff, real_sh.T)
+
+    return sf
+
+class Sphere:
+    theta = None
+    phi = None
+
+def compute_theta_phi(vertices):
+    vertices = np.array(vertices)
+    x, y, z = vertices[:, 0], vertices[:, 1], vertices[:, 2]
+    r = np.linalg.norm(vertices, axis=1)
+
+    theta = np.arccos(np.clip(z / r, -1.0, 1.0))
+    phi = np.arctan2(y, x)
+    phi = np.mod(phi, 2 * np.pi)  # normalize phi to [0, 2π]
+
+    return theta, phi
 
 def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     """
@@ -53,19 +124,22 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     big_minmax = np.repeat(minmax, 8, axis=0)
     attribute_to_actor(odf_actor, big_minmax, "minmax")
 
-    sphere = get_sphere(name=sphere_type)
+    #sphere = get_sphere(sphere_type)
+
+    vertices, _ = prim_sphere(name="repulsion100", gen_faces=True)
+    theta, phi = compute_theta_phi(vertices)
+    sphere = Sphere()
+    sphere.theta = theta
+    sphere.phi = phi
+
     sh_basis = "descoteaux07"
     n_coeffs = coeffs.shape[-1]
     sh_order = int((np.sqrt(8 * n_coeffs + 1) - 3) / 2)
 
     n_glyphs = coeffs.shape[0]
 
-    sh = np.zeros((n_glyphs, 1, 1, n_coeffs))
-    for i in range (n_glyphs):
-        sh[i, 0, 0, :] = coeffs[i, :]
-
     tensor_sf = sh_to_sf(
-        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere
+        coeffs, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere
     )
     tensor_sf_max = abs(tensor_sf.reshape(n_glyphs, 100)).max(axis=1)
 
