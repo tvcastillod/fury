@@ -1,9 +1,11 @@
 import os
 
 import numpy as np
+import scipy.special as sps
 
 from fury import actor
 from fury.lib import FloatArray, Texture
+from fury.primitive import prim_sphere
 from fury.shaders import (
     attribute_to_actor,
     compose_shader,
@@ -11,9 +13,11 @@ from fury.shaders import (
     shader_to_actor,
 )
 from fury.texture.utils import uv_calculations
-from fury.utils import minmax_norm, numpy_to_vtk_image_data, set_polydata_tcoords
-import scipy.special as sps
-from fury.primitive import prim_sphere
+from fury.utils import (
+    minmax_norm,
+    numpy_to_vtk_image_data,
+    set_polydata_tcoords,
+)
 
 
 def sh_to_sf(sh_coeff, sphere, sh_order_max=4, basis_type=None):
@@ -53,9 +57,9 @@ def sh_to_sf(sh_coeff, sphere, sh_order_max=4, basis_type=None):
 
     l_value = np.repeat(l_range, l_range * 2 + 1)
     offset = 0
-    m_value = np.empty(ncoef, 'int')
+    m_value = np.empty(ncoef, "int")
     for ii in l_range:
-        m_value[offset:offset + 2 * ii + 1] = np.arange(-ii, ii + 1)
+        m_value[offset : offset + 2 * ii + 1] = np.arange(-ii, ii + 1)
         offset = offset + 2 * ii + 1
 
     phi = np.reshape(sphere.phi, [-1, 1])
@@ -70,15 +74,19 @@ def sh_to_sf(sh_coeff, sphere, sh_order_max=4, basis_type=None):
     #    $Y^0_l$                      if m = 0
     #    Real($Y^m_l$) * sqrt(2)      if m < 0
     real_sh = np.where(m_value > 0, sh.imag, sh.real)
-    real_sh *= np.where(m_value == 0, 1., np.sqrt(2))
+    real_sh *= np.where(m_value == 0, 1.0, np.sqrt(2))
 
     sf = np.dot(sh_coeff, real_sh.T)
 
     return sf
 
+
 class Sphere:
+    vertices = None
+    faces = None
     theta = None
     phi = None
+
 
 def compute_theta_phi(vertices):
     vertices = np.array(vertices)
@@ -90,6 +98,7 @@ def compute_theta_phi(vertices):
     phi = np.mod(phi, 2 * np.pi)  # normalize phi to [0, 2π]
 
     return theta, phi
+
 
 def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     """
@@ -124,7 +133,7 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     big_minmax = np.repeat(minmax, 8, axis=0)
     attribute_to_actor(odf_actor, big_minmax, "minmax")
 
-    #sphere = get_sphere(sphere_type)
+    # sphere = get_sphere(sphere_type)
 
     vertices, _ = prim_sphere(name="repulsion100", gen_faces=True)
     theta, phi = compute_theta_phi(vertices)
@@ -316,8 +325,10 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     }
     """
 
-    sdf_map = sdf_map_1 + "\n".join(sh_list.splitlines()[:n_coeffs]) + sdf_map_2
-    #sdf_map = import_fury_shader(os.path.join("sdf", "sd_spherical_harmonics.#frag"))
+    sdf_map = (
+        sdf_map_1 + "\n".join(sh_list.splitlines()[:n_coeffs]) + sdf_map_2
+    )
+    # sdf_map = import_fury_shader(os.path.join("sdf", "sd_spherical_harmonics.#frag"))
 
     cast_ray = import_fury_shader(
         os.path.join("ray_tracing", "odf", "sh_cast_ray.frag")
