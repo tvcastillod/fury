@@ -176,6 +176,11 @@ if __name__ == "__main__":
         "maxRaySteps", max_ray_steps
     )
 
+    legacy = True
+    odf_actor.GetShaderProperty().GetFragmentCustomUniforms().SetUniformi(
+        "legacy", legacy
+    )
+
     fs_def_pi = "#define PI 3.1415926535898"
 
     fs_def_text_bracket = f"#define TEXT_BRACKET {1 / (2 * max_num_coeffs)}"
@@ -240,7 +245,7 @@ if __name__ == "__main__":
                 textVal, 0, 1, minmaxVSOutput.x, minmaxVSOutput.y
             );
             // TODO: Retreive from vertex shader
-            r += rescaledSHCoeff * calculateSH(l, m, normPnt);
+            r += rescaledSHCoeff * calculateSH(l, m, normPnt, bool(legacy));
 
             if (m == l) {
                 l += 2;
