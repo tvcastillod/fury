@@ -3,16 +3,15 @@ This script includes TEXTURE experimentation for passing SH coefficients
 """
 
 import os
+from operator import le
 
 import numpy as np
-
-"""
 from dipy.data import get_sphere
 from dipy.reconst.shm import sh_to_sf
-"""
 
 from fury import actor, window
-from fury.actors.odf_calc import Sphere, compute_theta_phi, sh_to_sf
+
+"""from fury.actors.odf_calc import Sphere, compute_theta_phi, sh_to_sf"""
 from fury.lib import FloatArray, Texture
 from fury.primitive import prim_sphere
 from fury.shaders import (
@@ -74,8 +73,9 @@ if __name__ == "__main__":
     big_minmax = np.repeat(minmax, 8, axis=0)
     attribute_to_actor(odf_actor, big_minmax, "minmax")
 
-    # sphere = get_sphere(name="repulsion100")
+    sphere = get_sphere(name="repulsion100")
 
+    """
     vertices, faces = prim_sphere(name="repulsion100", gen_faces=True)
     theta, phi = compute_theta_phi(vertices)
     sphere = Sphere()
@@ -83,6 +83,7 @@ if __name__ == "__main__":
     sphere.faces = faces
     sphere.theta = theta
     sphere.phi = phi
+    """
 
     num_verts = sphere.vertices.shape[0]
 
@@ -103,15 +104,22 @@ if __name__ == "__main__":
     """
 
     sh_basis = "descoteaux07"
+    # sh_basis = "tournier07"
 
-    """
+    legacy = False
+
     fODFs = sh_to_sf(
-        sh, sh_order_max=max_sh_degree, basis_type=sh_basis, sphere=sphere
+        coeffs,
+        sphere,
+        sh_order_max=max_sh_degree,
+        basis_type=sh_basis,
+        legacy=legacy,
     )
     """
     fODFs = sh_to_sf(
         coeffs, sphere, sh_order_max=max_sh_degree, basis_type=sh_basis
     )
+    """
 
     max_fODFs = abs(fODFs.reshape(num_glyphs, num_verts)).max(axis=1)
     big_max_fodfs = np.repeat(max_fODFs, 8, axis=0)
@@ -176,7 +184,6 @@ if __name__ == "__main__":
         "maxRaySteps", max_ray_steps
     )
 
-    legacy = True
     odf_actor.GetShaderProperty().GetFragmentCustomUniforms().SetUniformi(
         "legacy", legacy
     )
@@ -401,8 +408,9 @@ if __name__ == "__main__":
 
     show_man.scene.add(odf_actor)
 
-    # sphere = get_sphere(name="repulsion724")
+    sphere = get_sphere(name="repulsion724")
 
+    """
     vertices, faces = prim_sphere(name="repulsion724", gen_faces=True)
     theta, phi = compute_theta_phi(vertices)
     sphere = Sphere()
@@ -410,10 +418,7 @@ if __name__ == "__main__":
     sphere.faces = faces
     sphere.theta = theta
     sphere.phi = phi
-
-    sh_basis = "descoteaux07"
-    # sh_basis = "tournier07"
-    sh_order = 4
+    """
 
     sh = np.zeros((4, 1, 1, 15))
     sh[0, 0, 0, :] = coeffs[0, :]
@@ -421,17 +426,15 @@ if __name__ == "__main__":
     sh[2, 0, 0, :] = coeffs[2, :]
     sh[3, 0, 0, :] = coeffs[3, :]
 
-    """
     fODFs = sh_to_sf(
         sh,
-        sh_order_max=sh_order,
+        sphere,
+        sh_order_max=max_sh_degree,
         basis_type=sh_basis,
-        sphere=sphere,
-        legacy=True,
+        legacy=legacy,
     )
-    """
 
-    fODFs = sh_to_sf(sh, sphere, sh_order_max=sh_order, basis_type=sh_basis)
+    # fODFs = sh_to_sf(sh, sphere, sh_order_max=sh_order, basis_type=sh_basis)
     odf_slicer_actor = actor.odf_slicer(fODFs, sphere=sphere, norm=True)
 
     show_man.scene.add(odf_slicer_actor)
