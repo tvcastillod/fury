@@ -3,54 +3,29 @@ This script includes TEXTURE experimentation for passing SH coefficients
 """
 
 import os
+from operator import le
 
 import numpy as np
 from dipy.data import get_sphere
-from dipy.reconst.shm import sh_to_sf, sf_to_sh
+from dipy.reconst.shm import sh_to_sf
 
 from fury import actor, window
+
+"""from fury.actors.odf_calc import Sphere, compute_theta_phi, sh_to_sf"""
 from fury.lib import FloatArray, Texture
+from fury.primitive import prim_sphere
 from fury.shaders import (
     attribute_to_actor,
     compose_shader,
     import_fury_shader,
     shader_to_actor,
 )
-from fury.utils import numpy_to_vtk_image_data, set_polydata_tcoords, minmax_norm
-
-
-def uv_calculations(n):
-    """Return UV coordinates based on the number of elements.
-
-    Parameters
-    ----------
-    n : int
-        number of elements.
-
-    Returns
-    -------
-    uvs : ndrray
-        UV coordinates for each element.
-
-    """
-    uvs = []
-    for i in range(0, n):
-        a = (n - (i + 1)) / n
-        b = (n - i) / n
-        uvs.extend(
-            [
-                [0.001, a + 0.001],
-                [0.001, b - 0.001],
-                [0.999, b - 0.001],
-                [0.999, a + 0.001],
-                [0.001, a + 0.001],
-                [0.001, b - 0.001],
-                [0.999, b - 0.001],
-                [0.999, a + 0.001],
-            ]
-        )
-    return uvs
-
+from fury.texture.utils import uv_calculations
+from fury.utils import (
+    minmax_norm,
+    numpy_to_vtk_image_data,
+    set_polydata_tcoords,
+)
 
 if __name__ == "__main__":
     show_man = window.ShowManager(size=(1920, 1080))
@@ -82,10 +57,11 @@ if __name__ == "__main__":
         ]
     ])
     # fmt: on
-    centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0], [3, -1, 0]])
-    scales =  np.ones(4) * .5#np.array([1.2, 2, 2, 0.28])
 
-    odf_actor = actor.box(centers=centers, scales=1.0)
+    centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0], [3, -1, 0]])
+    scales = np.ones(4) * 0.5
+
+    odf_actor = actor.box(centers=centers, scales=1)
 
     big_centers = np.repeat(centers, 8, axis=0)
     attribute_to_actor(odf_actor, big_centers, "center")
@@ -97,32 +73,61 @@ if __name__ == "__main__":
     big_minmax = np.repeat(minmax, 8, axis=0)
     attribute_to_actor(odf_actor, big_minmax, "minmax")
 
-    #sphere = get_sphere("symmetric724")
-    sphere = get_sphere("repulsion100")
-    sh_basis = "descoteaux07"
-    sh_order = 4
+    sphere = get_sphere(name="repulsion100")
 
-    sh = np.zeros((4, 1, 1, 15))
+    """
+    vertices, faces = prim_sphere(name="repulsion100", gen_faces=True)
+    theta, phi = compute_theta_phi(vertices)
+    sphere = Sphere()
+    sphere.vertices = vertices
+    sphere.faces = faces
+    sphere.theta = theta
+    sphere.phi = phi
+    """
+
+    num_verts = sphere.vertices.shape[0]
+
+    num_glyphs = coeffs.shape[0]
+
+    max_num_coeffs = coeffs.shape[-1]
+    max_sh_degree = int((np.sqrt(8 * max_num_coeffs + 1) - 3) / 2)
+    max_poly_degree = 2 * max_sh_degree + 2
+    viz_sh_degree = max_sh_degree
+
+    # TODO: Find a way to avoid reshaping the SH coefficients
+    """
+    sh = np.zeros((max_sh_degree, 1, 1, max_num_coeffs))
     sh[0, 0, 0, :] = coeffs[0, :]
     sh[1, 0, 0, :] = coeffs[1, :]
     sh[2, 0, 0, :] = coeffs[2, :]
     sh[3, 0, 0, :] = coeffs[3, :]
+    """
 
-    tensor_sf = sh_to_sf(
-        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
+    sh_basis = "descoteaux07"
+    # sh_basis = "tournier07"
+
+    legacy = False
+
+    fODFs = sh_to_sf(
+        coeffs,
+        sphere,
+        sh_order_max=max_sh_degree,
+        basis_type=sh_basis,
+        legacy=legacy,
     )
-    tensor_sf_max = abs(tensor_sf.reshape(4, 100)).max(axis=1)
-    print(tensor_sf_max)
-    print(coeffs.max(axis=1))
+    """
+    fODFs = sh_to_sf(
+        coeffs, sphere, sh_order_max=max_sh_degree, basis_type=sh_basis
+    )
+    """
 
-    sfmax = np.array(tensor_sf_max)
-    big_sfmax = np.repeat(sfmax, 8, axis=0)
-    attribute_to_actor(odf_actor, big_sfmax, "sfmax")
+    max_fODFs = abs(fODFs.reshape(num_glyphs, num_verts)).max(axis=1)
+    big_max_fodfs = np.repeat(max_fODFs, 8, axis=0)
+    attribute_to_actor(odf_actor, big_max_fodfs, "maxfODFs")
 
     odf_actor_pd = odf_actor.GetMapper().GetInput()
 
-    n_glyphs = coeffs.shape[0]
-    uv_vals = np.array(uv_calculations(n_glyphs))
+    uv_vals = np.array(uv_calculations(num_glyphs))
     num_pnts = uv_vals.shape[0]
 
     t_coords = FloatArray()
@@ -141,322 +146,132 @@ if __name__ == "__main__":
     texture.Update()
 
     odf_actor.GetProperty().SetTexture("texture0", texture)
-    n_coeffs = coeffs.shape[-1]
-    # TODO: Set int uniform
-    odf_actor.GetShaderProperty().GetFragmentCustomUniforms().SetUniformf(
-        "numCoeffs", 15
+
+    odf_actor.GetShaderProperty().GetVertexCustomUniforms().SetUniformf(
+        "shDegree", viz_sh_degree
     )
 
     vs_dec = """
     in vec3 center;
-    in float scale;
     in vec2 minmax;
-    in float sfmax;
+    in float maxfODFs;
+    in float scale;
+
+    flat out float numCoeffsVSOutput;
 
     out vec4 vertexMCVSOutput;
-    out vec3 centerMCVSOutput;
-    out float scaleVSOutput;
-    out vec2 minmaxVSOutput;
-    out float sfmaxVSOutput;
     out vec3 camPosMCVSOutput;
+    out vec3 centerMCVSOutput;
+    out vec2 minmaxVSOutput;
+    out float maxfODFsVSOutput;
+    out float scaleVSOutput;
     """
 
     vs_impl = """
-    vertexMCVSOutput = vertexMC;
+    camPosMCVSOutput = -MCVCMatrix[3].xyz * mat3(MCVCMatrix);
     centerMCVSOutput = center;
-    scaleVSOutput = scale;
+    maxfODFsVSOutput = maxfODFs;
     minmaxVSOutput = minmax;
-    sfmaxVSOutput = sfmax;
-    vec3 camPos = -MCVCMatrix[3].xyz * mat3(MCVCMatrix);
+    numCoeffsVSOutput = (shDegree + 1) * (shDegree + 2) / 2;
+    scaleVSOutput = scale;
+    vertexMCVSOutput = vertexMC;
     """
 
     shader_to_actor(odf_actor, "vertex", decl_code=vs_dec, impl_code=vs_impl)
 
-    fs_defs = "#define PI 3.1415926535898"
+    max_ray_steps = 250  # TODO: Turn to actor param
+    odf_actor.GetShaderProperty().GetFragmentCustomUniforms().SetUniformi(
+        "maxRaySteps", max_ray_steps
+    )
+
+    odf_actor.GetShaderProperty().GetFragmentCustomUniforms().SetUniformi(
+        "legacy", legacy
+    )
+
+    fs_def_pi = "#define PI 3.1415926535898"
+
+    fs_def_text_bracket = f"#define TEXT_BRACKET {1 / (2 * max_num_coeffs)}"
 
     fs_unifs = """
-    uniform float psiMin = 99999.0;
-    uniform float psiMax = -99999.0;
     uniform mat4 MCVCMatrix;
-    uniform samplerCube texture_0;
-    //uniform int k;
     """
 
     fs_vs_vars = """
+    flat in float numCoeffsVSOutput;
+
     in vec4 vertexMCVSOutput;
+    in vec3 camPosMCVSOutput;
     in vec3 centerMCVSOutput;
-    in float scaleVSOutput;
     in vec2 minmaxVSOutput;
-    in float sfmaxVSOutput;
+    in float maxfODFsVSOutput;
+    in float scaleVSOutput;
     """
 
     coeffs_norm = import_fury_shader(os.path.join("utils", "minmax_norm.glsl"))
 
     # Functions needed to calculate the associated Legendre polynomial
-    factorial = """
-    int factorial(int v)
-    {
-        int t = 1;
-        for(int i = 2; i <= v; i++)
-        {
-            t *= i;
-        }
-        return t;
-    }
-    """
+    # TODO: Precompute factorial values
+    factorial = import_fury_shader(os.path.join("utils", "factorial.glsl"))
 
     # Adapted from https://patapom.com/blog/SHPortal/
     # "Evaluate an Associated Legendre Polynomial P(l,m,x) at x
     # For more, see “Numerical Methods in C: The Art of Scientific Computing”,
     # Cambridge University Press, 1992, pp 252-254"
-    legendre_polys = """
-    float P(int l, int m, float x )
+    assoc_legendre_poly = import_fury_shader(
+        os.path.join("sdf", "odf", "assoc_legendre_poly.frag")
+    )
+
+    norm_fact = import_fury_shader(
+        os.path.join("sdf", "odf", "sh_norm_factor.frag")
+    )
+
+    spherical_harmonics = import_fury_shader(
+        os.path.join("sdf", "odf", "sh_function.frag")
+    )
+
+    sdf_map = """
+    vec3 map(vec3 p)
     {
-        float pmm = 1;
+        vec3 centeredPnt = p - centerMCVSOutput;
 
-        float somx2 = sqrt((1 - x) * (1 + x));
-        float fact = 1;
-        for (int i=1; i<=m; i++) {
-            pmm *= -fact * somx2;
-            fact += 2;
-        }
+        float pntLen = length(centeredPnt);
 
-        if( l == m )
-            return pmm;
+        vec3 normPnt = centeredPnt / pntLen;
 
-        float pmmp1 = x * (2 * m + 1) * pmm;
-        if(l == m + 1)
-            return pmmp1;
+        int l = 0;  // Order
+        int m = 0;  // Degree
+        float r = 0.0;
+        for(int i = 0; i < numCoeffsVSOutput; i++){
+            // TODO: Move to vertex shader
+            float textVal = texture(
+                texture0,
+                vec2(i / numCoeffsVSOutput + TEXT_BRACKET, tcoordVCVSOutput.y)
+            ).x;
+            // TODO: Move to vertex shader and output to fragment shader
+            float rescaledSHCoeff = rescale(
+                textVal, 0, 1, minmaxVSOutput.x, minmaxVSOutput.y
+            );
+            // TODO: Retreive from vertex shader
+            r += rescaledSHCoeff * calculateSH(l, m, normPnt, bool(legacy));
 
-        float pll = 0;
-        for (float ll=m + 2; ll<=l; ll+=1) {
-            pll = ((2 * ll - 1) * x * pmmp1 - (ll + m - 1) * pmm) / (ll - m);
-            pmm = pmmp1;
-            pmmp1 = pll;
-        }
-
-        return pll;
-    }
-    """
-
-    norm_const = """
-    float K(int l, int m)
-    {
-        float n = (2 * l + 1) * factorial(l - m);
-        float d = 4 * PI * factorial(l + m);
-        return sqrt(n / d);
-    }
-    """
-
-    spherical_harmonics = """
-    float SH(int l, int m, in vec3 s)
-    {
-        vec3 ns = normalize(s);
-        float thetax = ns.z;
-        float phi = atan(ns.y, ns.x);
-        float v = K(l, abs(m)) * P(l, abs(m), thetax);
-        if(m != 0)
-            v *= sqrt(2);
-        if(m > 0)
-            v *= sin(m * phi);
-        if(m < 0)
-            v *= cos(-m * phi);
-
-        return v;
-    }
-    """
-
-    def_coeff = f"#define NCOEFF {n_coeffs}"
-
-    sh_degree_list = '''r = shCoeffs[0] * SH(0, 0, n);
-        r += shCoeffs[1]* SH(2, -2, n);
-        r += shCoeffs[2]* SH(2, -1, n);
-        r += shCoeffs[3] * SH(2, 0, n);
-        r += shCoeffs[4] * SH(2, 1, n);
-        r += shCoeffs[5] * SH(2, 2, n);
-        r += shCoeffs[6] * SH(4, -4, n);
-        r += shCoeffs[7] * SH(4, -3, n);
-        r += shCoeffs[8]* SH(4, -2, n);
-        r += shCoeffs[9]* SH(4, -1, n);
-        r += shCoeffs[10]* SH(4, 0, n);
-        r += shCoeffs[11]* SH(4, 1, n);
-        r += shCoeffs[12]* SH(4, 2, n);
-        r += shCoeffs[13]* SH(4, 3, n);
-        r += shCoeffs[14]* SH(4, 4, n);
-    '''
-
-    sdf_map_1 = """
-
-    /*
-    def fibonacci_sphere(samples=1000):
-
-    points = []
-    phi = math.pi * (math.sqrt(5.) - 1.)  # golden angle in radians
-
-    for i in range(samples):
-        y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
-        radius = math.sqrt(1 - y * y)  # radius at y
-
-        theta = phi * i  # golden angle increment
-
-        x = math.cos(theta) * radius
-        z = math.sin(theta) * radius
-
-        points.append((x, y, z))
-
-    return points
-    */
-
-    const int SIZE = 100;
-    void fibonacci_sphere(out vec3 result[SIZE]){
-
-        vec3 points[SIZE];
-        float phi = PI * (sqrt(5.) - 1.);  // golden angle in radians
-
-        for(int i=0; i < SIZE; i++){
-            float y = 1 - (i / float(SIZE - 1)) * 2;  // y goes from 1 to -1
-            float radius = sqrt(1 - y * y);  // radius at y
-
-            float theta = phi * i; // golden angle increment
-
-            float x = cos(theta) * radius;
-            float z = sin(theta) * radius;
-
-            points[i] = normalize(vec3(x, y, z));
-        }
-        result = points;
-    }
-
-    vec3 map_max( in vec3 p )
-    {
-        p = p - centerMCVSOutput;
-        vec3 p00 = p;
-
-        float r, d; vec3 n, s, res;
-
-        #define SHAPE (vec3(d-abs(r), sign(r),d))
-        //#define SHAPE (vec3(d-0.35, -1.0+2.0*clamp(0.5 + 16.0*r,0.0,1.0),d))
-        d=length(p00);
-        n=p00 / d;
-        // ================================================================
-        #define SH_COUNT 15
-        float i = 1 / (numCoeffs * 2);
-        float shCoeffs[15];
-        float maxCoeff = 0.0;
-        for(int j=0; j < numCoeffs; j++){
-            shCoeffs[j] = rescale(
-                texture(
-                    texture0,
-                    vec2(i + j / numCoeffs, tcoordVCVSOutput.y)).x,
-                    0, 1, minmaxVSOutput.x, minmaxVSOutput.y
-            );// /abs(minmaxVSOutput.y);
-        }
-        r = shCoeffs[0] * SH(0, 0, n);
-        r += shCoeffs[1]* SH(2, -2, n);
-        r += shCoeffs[2]* SH(2, -1, n);
-        r += shCoeffs[3] * SH(2, 0, n);
-        r += shCoeffs[4] * SH(2, 1, n);
-        r += shCoeffs[5] * SH(2, 2, n);
-        r += shCoeffs[6] * SH(4, -4, n);
-        r += shCoeffs[7] * SH(4, -3, n);
-        r += shCoeffs[8]* SH(4, -2, n);
-        r += shCoeffs[9]* SH(4, -1, n);
-        r += shCoeffs[10]* SH(4, 0, n);
-        r += shCoeffs[11]* SH(4, 1, n);
-        r += shCoeffs[12]* SH(4, 2, n);
-        r += shCoeffs[13]* SH(4, 3, n);
-        r += shCoeffs[14]* SH(4, 4, n);
-
-        //r *= scaleVSOutput * .9;
-        // ================================================================
-        s = SHAPE;
-        res=s;
-        return vec3(res.x, .5 + .5 * res.y, res.z);
-    }
-
-    float get_max() {
-        vec3 points[SIZE];
-        fibonacci_sphere(points);
-        float sf = 0.0;
-        float max_value = 0.0;
-        for(int j=0; j < SIZE; j++){
-            sf = map_max(points[j]).x;
-            if (sf > max_value){
-                max_value = sf;
+            if (m == l) {
+                l += 2;
+                m = -l;
+            } else {
+                m++;
             }
         }
-        return max_value;
-    }
 
-    float MAX_SF = get_max();
-    vec3 map( in vec3 p )
-    {
-        p = p - centerMCVSOutput;
-        vec3 p00 = p;
-
-        float r, d; vec3 n, s, res;
-
-        #define SHAPE (vec3(d-abs(r), sign(r),d))
-        //#define SHAPE (vec3(d-0.35, -1.0+2.0*clamp(0.5 + 16.0*r,0.0,1.0),d))
-        d=length(p00);
-        n=p00 / d;
-        // ================================================================
-
-        float i = 1 / (numCoeffs * 2);
-        float shCoeffs[NCOEFF];
-        float maxCoeff = 0.0;
-        for(int j=0; j < numCoeffs; j++){
-            shCoeffs[j] = rescale(
-                texture(
-                    texture0,
-                    vec2(i + j / numCoeffs, tcoordVCVSOutput.y)).x,
-                    0, 1, minmaxVSOutput.x, minmaxVSOutput.y
-            );// /abs(minmaxVSOutput.y);
-        }
-    """
-
-    sdf_map_2="""
-        /*
-        // OPTION 2
-        float psiMin = 0.0;
-        float psiMax = 0.0;
-        for (int j = 0; j < numCoeffs; j++) {
-            float absCoeff = abs(shCoeffs[j]); // Take absolute value of each coefficient
-            psiMax += absCoeff; // Upper bound estimate
-            psiMin -= absCoeff; // Lower bound estimate
-        }
-        r /= (psiMax-psiMin);
-        */
-
-        /*
-        // OPTION 1
-        float maxCoeff = 0.0;
-        float minCoeff = 0.0;
-        for (int i = 0; i < numCoeffs; i++) {
-            maxCoeff += abs(shCoeffs[i]);
-        }
-        if (maxCoeff > 0.0) {
-            r /= maxCoeff;
-        }
-        */
-
-        //r /= abs(minmaxVSOutput.y);
-        r /= abs(sfmaxVSOutput);
-        //r /=  abs(MAX_SF);
+        r /= maxfODFsVSOutput;
         r *= scaleVSOutput * .9;
-        // ================================================================
-        s = SHAPE;
-        res=s;
-        return vec3(res.x, .5 + .5 * res.y, res.z);
+
+        vec3 res = vec3(pntLen - abs(r), sign(r), pntLen);
+        return vec3(res.x, 0.5 * res.y + 0.5, res.z);
     }
     """
-
-    sdf_map = sdf_map_1+"\n".join(sh_degree_list.splitlines()[:6])+sdf_map_2
-    print(sdf_map)
-    sdf_map = sdf_map_1+sh_degree_list+sdf_map_2
 
     cast_ray = """
-    vec3 castRay(in vec3 ro, vec3 rd)
+    vec3 castRay(in vec3 ro, vec3 rd, int maxSteps)
     {
         vec3 res = vec3(1e10, -1, 1);
 
@@ -465,14 +280,14 @@ if __name__ == "__main__":
         float t = 0;
         vec2  m = vec2(-1);
 
-        for(int i = 0; i < 2000; i++)
+        for(int i = 0; i < maxSteps; i++)
         {
-            if(h < .01 || t > maxd)
+            if(h < 0.01 || t > maxd)
                 break;
             vec3 res = map(ro + rd * t);
             h = res.x;
             m = res.yz;
-            t += h * .1;
+            t += h * 0.1;
         }
 
         if(t < maxd && t < res.x)
@@ -482,26 +297,16 @@ if __name__ == "__main__":
     }
     """
 
-    central_diffs_normals = """
-/*
-vec3 centralDiffsNormals(in vec3 p, float eps)
-{
-    vec2 h = vec2(eps, 0);
-    return normalize(vec3(mapp(p + h.xyy) - mapp(p - h.xyy),
-                          mapp(p + h.yxy) - mapp(p - h.yxy),
-                          mapp(p + h.yyx) - mapp(p - h.yyx)));
-}
-*/
-    vec3 centralDiffsNormals( in vec3 pos )
-{
-    const vec2 eps = vec2(0.0001,0.0);
-
-	return normalize( vec3(
-           map(pos+eps.xyy).x - map(pos-eps.xyy).x,
-           map(pos+eps.yxy).x - map(pos-eps.yxy).x,
-           map(pos+eps.yyx).x - map(pos-eps.yyx).x ) );
-}
+    sdf_eval = """
+    float sdfEval(vec3 p)
+    {
+        return map(p).x;
+    }
     """
+
+    central_diffs_normals = import_fury_shader(
+        os.path.join("sdf", "central_diffs.frag")
+    )
 
     # Applies the non-linearity that maps linear RGB to sRGB
     linear_to_srgb = import_fury_shader(
@@ -532,10 +337,11 @@ vec3 centralDiffsNormals(in vec3 p, float eps)
 
     # fmt: off
     fs_dec = compose_shader([
-        fs_defs, fs_unifs, fs_vs_vars, coeffs_norm, factorial, legendre_polys,
-        norm_const, spherical_harmonics, def_coeff, sdf_map, cast_ray,
-        central_diffs_normals, linear_to_srgb, srgb_to_linear,
-        linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap, blinn_phong_model
+        fs_def_pi, fs_def_text_bracket, fs_unifs, fs_vs_vars, coeffs_norm,
+        factorial, assoc_legendre_poly, norm_fact, spherical_harmonics,
+        sdf_map, cast_ray, sdf_eval, central_diffs_normals, linear_to_srgb,
+        srgb_to_linear, linear_rgb_to_srgb, srgb_to_linear_rgb, tonemap,
+        blinn_phong_model
     ])
     # fmt: on
 
@@ -544,7 +350,7 @@ vec3 centralDiffsNormals(in vec3 p, float eps)
     sdf_frag_impl = """
     vec3 pnt = vertexMCVSOutput.xyz;
 
-    vec3 ro = -MCVCMatrix[3].xyz * mat3(MCVCMatrix);
+    vec3 ro = camPosMCVSOutput;
 
     vec3 rd = normalize(pnt - ro);
 
@@ -552,19 +358,48 @@ vec3 centralDiffsNormals(in vec3 p, float eps)
 
     ro += pnt - ro;
 
-    vec3 t = castRay(ro, rd);
+    vec3 t = castRay(ro, rd, maxRaySteps);
 
-    if(t.y > -.5)
+    vec3 color = vec3(1);
+
+    if(t.y >= 0)
     {
         vec3 pos = ro - centerMCVSOutput + t.x * rd;
-        vec3 normal = centralDiffsNormals(pos);
+        vec3 normal = centralDiffsNormals(pos, 0.0001);
+
         vec3 colorDir = srgbToLinearRgb(abs(normalize(pos)));
-        fragOutput0 = vec4(colorDir, opacity);
+
+        float attenuation = clamp(dot(ld, normal), 0, 1);
+
+        vec3 mate = blinnPhongIllumModel(
+            attenuation, lightColor0, colorDir, specularPower,
+            specularColor, colorDir);
+
+        // Material
+        // mix(color1, color2, t.y) to use sign to select between two colors
+        //vec3 mate = 0.5 * mix(vec3(1, 0.6, 0.15), vec3(0.2, 0.4, 0.5), t.y);
+
+        float occ = clamp(2 * t.z, 0, 1);
+
+        float sss = pow(clamp(1 + dot(normal, rd), 0, 1), 1);
+        //float sss = clamp(1 + dot(normal, rd), 0, 1);
+
+        // Lighting
+        vec3 lin  = 2.5 * occ * vec3(1) * (0.4 * normal.y + 0.6);
+        lin += 1 * sss * vec3(1, 0.95, 0.7) * occ;
+
+        color = mate * lin;
+        //color = mate;
+        //color = colorDir * lin;
+        //color = colorDir;
     }
     else
     {
         discard;
     }
+
+    vec3 outColor = linearRgbToSrgb(tonemap(color));
+    fragOutput0 = vec4(outColor, opacity);
     """
 
     shader_to_actor(
@@ -573,11 +408,17 @@ vec3 centralDiffsNormals(in vec3 p, float eps)
 
     show_man.scene.add(odf_actor)
 
-    sphere = get_sphere("symmetric724")
+    sphere = get_sphere(name="repulsion724")
 
-    sh_basis = "descoteaux07"
-    #sh_basis = "tournier07"
-    sh_order = 4
+    """
+    vertices, faces = prim_sphere(name="repulsion724", gen_faces=True)
+    theta, phi = compute_theta_phi(vertices)
+    sphere = Sphere()
+    sphere.vertices = vertices
+    sphere.faces = faces
+    sphere.theta = theta
+    sphere.phi = phi
+    """
 
     sh = np.zeros((4, 1, 1, 15))
     sh[0, 0, 0, :] = coeffs[0, :]
@@ -585,12 +426,16 @@ vec3 centralDiffsNormals(in vec3 p, float eps)
     sh[2, 0, 0, :] = coeffs[2, :]
     sh[3, 0, 0, :] = coeffs[3, :]
 
-    tensor_sf = sh_to_sf(
-        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
+    fODFs = sh_to_sf(
+        sh,
+        sphere,
+        sh_order_max=max_sh_degree,
+        basis_type=sh_basis,
+        legacy=legacy,
     )
-    odf_slicer_actor = actor.odf_slicer(
-        tensor_sf, sphere=sphere, norm=True
-    )
+
+    # fODFs = sh_to_sf(sh, sphere, sh_order_max=sh_order, basis_type=sh_basis)
+    odf_slicer_actor = actor.odf_slicer(fODFs, sphere=sphere, norm=True)
 
     show_man.scene.add(odf_slicer_actor)
 

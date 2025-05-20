@@ -1,11 +1,13 @@
 """
 This script includes ODF implementation with sdf definition.
 """
+
 import os
+
 import numpy as np
+from dipy.data import get_sphere
 from dipy.data.fetcher import dipy_home
 from dipy.io.image import load_nifti
-from dipy.data import get_sphere
 from dipy.reconst.shm import sh_to_sf
 
 from fury import actor, window
@@ -14,6 +16,7 @@ if __name__ == "__main__":
     show_man = window.ShowManager(size=(1920, 1080))
     show_man.scene.background((1, 1, 1))
 
+    # fmt: off
     coeffs = np.array([
         [
             0.2820735, 0.15236554, -0.04038717, -0.11270988, -0.04532376,
@@ -59,14 +62,15 @@ if __name__ == "__main__":
     ])
 
     # fmt: on
+
     centers = np.array([[0, -1, 0], [1, -1, 0], [2, -1, 0], [3, -1, 0]])
-    scales =  np.ones(4) * .5
+    scales = np.ones(4) * 0.5
 
     odf_actor = actor.odf_impl(centers, coeffs, "repulsion100", scales, 1.0)
 
     show_man.scene.add(odf_actor)
 
-    sphere = get_sphere("symmetric724")
+    sphere = get_sphere(name="symmetric724")
 
     sh_basis = "descoteaux07"
     sh_order = 4
@@ -78,7 +82,11 @@ if __name__ == "__main__":
     sh[3, 0, 0, :] = coeffs[3, :]
 
     tensor_sf = sh_to_sf(
-        sh, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere, legacy=True
+        sh,
+        sh_order_max=sh_order,
+        basis_type=sh_basis,
+        sphere=sphere,
+        legacy=True,
     )
     odf_slicer_actor = actor.odf_slicer(tensor_sf, sphere=sphere, norm=True)
 
