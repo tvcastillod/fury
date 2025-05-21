@@ -12,12 +12,12 @@ float calcAssocLegendrePoly(int l, int m, float x)
     }
 
     if (l == absM) {
-        return legendrePmm;
+        legendrePmm = legendrePmm;
     }
 
     float legendrePmmPlus1 = x * (2.0 * absM + 1.0) * legendrePmm; // P(m+1, m, x)
     if (l == absM + 1) {
-        return legendrePmmPlus1;
+        legendrePmm = legendrePmmPlus1;
     }
 
     float legendrePlm = 0.0; // P(l, m, x)

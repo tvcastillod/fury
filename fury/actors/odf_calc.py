@@ -20,7 +20,7 @@ from fury.utils import (
 )
 
 
-def sh_to_sf(sh_coeff, sphere, sh_order_max=4, basis_type=None):
+def sh_to_sf(sh_coeff, sphere, sh_order_max=4, basis_type="descoteaux07", legacy=False):
     """Spherical harmonics (SH) to spherical function (SF).
 
     Parameters
@@ -34,9 +34,12 @@ def sh_to_sf(sh_coeff, sphere, sh_order_max=4, basis_type=None):
         ``(sh_order_max + 1) * (sh_order_max + 2) / 2`` SH coefficients for a
         symmetric basis and ``(sh_order_max + 1) * (sh_order_max + 1)``
         coefficients for a full SH basis.
-    basis_type : {None, 'descoteaux07'}, optional
-        ``descoteaux07`` for the Descoteaux 2007 [1]_ basis,
-        (``None`` defaults to ``descoteaux07``).
+    basis_type : {'tournier07', 'descoteaux07'}, optional
+        ``tournier07`` for the Tournier 2007 [2]_[3]_ basis,
+        ``descoteaux07`` for the Descoteaux 2007 [1]_ basis (default)
+    legacy: bool, optional
+        True to use a legacy basis definition for backward compatibility
+        with previous ``descoteaux07`` implementations.
 
     Returns
     -------
@@ -65,16 +68,36 @@ def sh_to_sf(sh_coeff, sphere, sh_order_max=4, basis_type=None):
     phi = np.reshape(sphere.phi, [-1, 1])
     theta = np.reshape(sphere.theta, [-1, 1])
 
-    # Calculate Spherical Harmonics
-    sh = sps.sph_harm(m_value, l_value, phi, theta, dtype=complex)
+    if basis_type == "descoteaux07":
+        # Compute real spherical harmonics as in Descoteaux et al. 2007 [1]_,
+        # where the real harmonic $Y^m_l$ is defined to be:
+        #    Imag($Y^m_l$) * sqrt(2)      if m > 0
+        #    $Y^0_l$                      if m = 0
+        #    Real($Y^m_l$) * sqrt(2)      if m < 0
+        if legacy:
+            # In the case where m < 0, legacy descoteaux basis considers |m|
+            sh = sps.sph_harm(np.abs(m_value), l_value, phi, theta, dtype=complex)
+        else:
+            # In the cited paper, the basis is defined without the absolute value
+            sh = sps.sph_harm(m_value, l_value, phi, theta, dtype=complex)
 
-    # Compute real spherical harmonics as in Descoteaux et al. 2007 [1]_,
-    # where the real harmonic $Y^m_l$ is defined to be:
-    #    Imag($Y^m_l$) * sqrt(2)      if m > 0
-    #    $Y^0_l$                      if m = 0
-    #    Real($Y^m_l$) * sqrt(2)      if m < 0
-    real_sh = np.where(m_value > 0, sh.imag, sh.real)
-    real_sh *= np.where(m_value == 0, 1.0, np.sqrt(2))
+        real_sh = np.where(m_value > 0, sh.imag, sh.real)
+        real_sh *= np.where(m_value == 0, 1., np.sqrt(2))
+    else:
+        # Compute real spherical harmonics as initially defined in Tournier
+        # 2007 [1]_ then updated in MRtrix3 [2]_, where the real harmonic
+        # $Y^m_l$ is defined to be:
+        #    Real($Y^m_l$) * sqrt(2)      if m > 0
+        #    $Y^0_l$                      if m = 0
+        #    Imag($Y^|m|_l$) * sqrt(2)    if m < 0
+
+        # In the m < 0 case, Tournier basis considers |m|
+        sh = sps.sph_harm(np.abs(m_value), l_value, phi, theta, dtype=complex)
+        real_sh = np.where(m_value < 0, sh.imag, sh.real)
+
+        if not legacy:
+            # The Tournier basis from MRtrix3 is normalized
+            real_sh *= np.where(m_value == 0, 1., np.sqrt(2))
 
     sf = np.dot(sh_coeff, real_sh.T)
 
@@ -100,7 +123,15 @@ def compute_theta_phi(vertices):
     return theta, phi
 
 
-def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
+def sh_odf_calc(
+    centers,
+    coeffs,
+    sphere_type,
+    scales,
+    opacity,
+    basis_type="descoteaux07",
+    legacy=False,
+):
     """
     Visualize one or many ODFs with different features.
 
@@ -114,6 +145,12 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
         ODFs size.
     opacity : float
         Takes values from 0 (fully transparent) to 1 (opaque).
+    basis_type : {'tournier07', 'descoteaux07'}, optional
+        ``tournier07`` for the Tournier 2007 [2]_[3]_ basis,
+        ``descoteaux07`` for the Descoteaux 2007 [1]_ basis (default)
+    legacy: bool, optional
+        True to use a legacy basis definition for backward compatibility
+        with previous ``descoteaux07`` implementations.
 
     Returns
     -------
@@ -141,14 +178,14 @@ def sh_odf_calc(centers, coeffs, sphere_type, scales, opacity):
     sphere.theta = theta
     sphere.phi = phi
 
-    sh_basis = "descoteaux07"
+    #sh_basis = "descoteaux07"
     n_coeffs = coeffs.shape[-1]
     sh_order = int((np.sqrt(8 * n_coeffs + 1) - 3) / 2)
 
     n_glyphs = coeffs.shape[0]
 
     tensor_sf = sh_to_sf(
-        coeffs, sh_order_max=sh_order, basis_type=sh_basis, sphere=sphere
+        coeffs, sh_order_max=sh_order, basis_type=basis_type, sphere=sphere, legacy=legacy
     )
     tensor_sf_max = abs(tensor_sf.reshape(n_glyphs, 100)).max(axis=1)
 

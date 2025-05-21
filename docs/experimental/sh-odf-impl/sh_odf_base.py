@@ -7,9 +7,10 @@ from operator import le
 
 import numpy as np
 from dipy.data import get_sphere
-from dipy.reconst.shm import sh_to_sf
+#from dipy.reconst.shm import sh_to_sf
 
 from fury import actor, window
+from fury.actors.odf_calc import sh_to_sf
 
 """from fury.actors.odf_calc import Sphere, compute_theta_phi, sh_to_sf"""
 from fury.lib import FloatArray, Texture
@@ -73,7 +74,7 @@ if __name__ == "__main__":
     big_minmax = np.repeat(minmax, 8, axis=0)
     attribute_to_actor(odf_actor, big_minmax, "minmax")
 
-    sphere = get_sphere(name="repulsion100")
+    sphere = get_sphere(name="symmetric724")
 
     """
     vertices, faces = prim_sphere(name="repulsion100", gen_faces=True)
@@ -104,7 +105,7 @@ if __name__ == "__main__":
     """
 
     sh_basis = "descoteaux07"
-    # sh_basis = "tournier07"
+    #sh_basis = "tournier07"
 
     legacy = False
 
@@ -188,6 +189,10 @@ if __name__ == "__main__":
         "legacy", legacy
     )
 
+    odf_actor.GetShaderProperty().GetFragmentCustomUniforms().SetUniformi(
+        "isDescoteauxBasis", True if sh_basis == "descoteaux07" else False
+    )
+
     fs_def_pi = "#define PI 3.1415926535898"
 
     fs_def_text_bracket = f"#define TEXT_BRACKET {1 / (2 * max_num_coeffs)}"
@@ -252,7 +257,7 @@ if __name__ == "__main__":
                 textVal, 0, 1, minmaxVSOutput.x, minmaxVSOutput.y
             );
             // TODO: Retreive from vertex shader
-            r += rescaledSHCoeff * calculateSH(l, m, normPnt, bool(legacy));
+            r += rescaledSHCoeff * calculateSH(l, m, normPnt, bool(legacy), bool(isDescoteauxBasis));
 
             if (m == l) {
                 l += 2;
