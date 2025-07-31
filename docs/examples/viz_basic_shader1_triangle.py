@@ -32,7 +32,6 @@ class TriangleShader(BaseShader):
     def get_bindings(self, wobject, shared):
         # Define what GPU resources (buffers/textures) the shader will use
         ## Our only binding is a uniform buffer
-        # We must return a dict mapping slot indices to Binding objects
         bindings = {
             0: Binding("u_stdinfo", "buffer/uniform", shared.uniform_buffer),
         }
