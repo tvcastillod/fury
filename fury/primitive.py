@@ -410,7 +410,7 @@ def prim_sphere(*, name="symmetric362", gen_faces=False, phi=None, theta=None):
     --------
     >>> import numpy as np
     >>> from fury.primitive import prim_sphere
-    >>> verts, faces = prim_sphere('symmetric362')
+    >>> verts, faces = prim_sphere(name='symmetric362')
     >>> verts.shape == (362, 3)
     True
     >>> faces.shape == (720, 3)
@@ -696,12 +696,12 @@ def prim_rhombicuboctahedron():
 
 
 def prim_star(*, dim=2):
-    """Return vertices and triangles for star geometry.
+    """Return vertices and triangles for a 5-pointed star (2D or 3D).
 
     Parameters
     ----------
     dim : int, optional
-        Dimension of the star (2 or 3).
+        Dimension of the star, either 2 or 3.
 
     Returns
     -------
@@ -710,87 +710,48 @@ def prim_star(*, dim=2):
     triangles : ndarray
         Triangles that compose the star.
     """
+    outer_radius = 1 / 2
+    inner_radius = 1 / 5
+    z_height = 1 / 10
+
+    if dim not in (2, 3):
+        raise ValueError("prim_star supports only dim=2 or dim=3")
+
+    pi = math.pi
+    angles = [pi / 2 + i * 2 * pi / 5 for i in range(5)]
+    inner_angles = [ang + pi / 5 for ang in angles]
+
+    base = []
+    for i in range(5):
+        a = angles[i]
+        ia = inner_angles[i]
+        base.append([outer_radius * math.cos(a), outer_radius * math.sin(a), 0])
+        base.append([inner_radius * math.cos(ia), inner_radius * math.sin(ia), 0])
+
+    faces = [
+        [0, 1, 9],
+        [1, 2, 3],
+        [3, 4, 5],
+        [5, 6, 7],
+        [7, 8, 9],
+        [1, 3, 5],
+        [1, 5, 7],
+        [1, 7, 9],
+    ]
+
     if dim == 2:
-        vert = np.array(
-            [
-                [-2.0, -3.0, 0.0],
-                [0.0, -2.0, 0.0],
-                [3.0, -3.0, 0.0],
-                [2.0, -1.0, 0.0],
-                [3.0, 1.0, 0.0],
-                [1.0, 1.0, 0.0],
-                [0.0, 3.0, 0.0],
-                [-1.0, 1.0, 0.0],
-                [-3.0, 1.0, 0.0],
-                [-2.0, -1.0, 0.0],
-            ]
-        )
+        vertices = np.array(base, dtype=float)
+        return vertices, np.array(faces, dtype=int)
 
-        triangles = np.array(
-            [
-                [1, 9, 0],
-                [1, 2, 3],
-                [3, 4, 5],
-                [5, 6, 7],
-                [7, 8, 9],
-                [1, 9, 3],
-                [3, 7, 9],
-                [3, 5, 7],
-            ],
-            dtype="i8",
-        )
+    vertices = base + [[0, 0, z_height], [0, 0, -z_height]]
+    top_idx, bot_idx = 10, 11
+    for i in range(10):
+        j = (i + 1) % 10
+        faces.append([i, j, top_idx])
+        faces.append([j, i, bot_idx])
 
-    if dim == 3:
-        vert = np.array(
-            [
-                [-2.0, -3.0, 0.0],
-                [0.0, -2, 0.0],
-                [3.0, -3.0, 0.0],
-                [2.0, -1.0, 0.0],
-                [3.0, 0.5, 0.0],
-                [1.0, 0.5, 0.0],
-                [0, 3.0, 0.0],
-                [-1.0, 0.5, 0.0],
-                [-3.0, 0.5, 0.0],
-                [-2.0, -1.0, 0.0],
-                [0.0, 0.0, 0.5],
-                [0.0, 0.0, -0.5],
-            ]
-        )
-        triangles = np.array(
-            [
-                [1, 9, 0],
-                [1, 2, 3],
-                [3, 4, 5],
-                [5, 6, 7],
-                [7, 8, 9],
-                [1, 9, 3],
-                [3, 7, 9],
-                [3, 5, 7],
-                [1, 0, 10],
-                [0, 9, 10],
-                [10, 9, 8],
-                [7, 8, 10],
-                [6, 7, 10],
-                [5, 6, 10],
-                [5, 10, 4],
-                [10, 3, 4],
-                [3, 10, 2],
-                [10, 1, 2],
-                [1, 0, 11],
-                [0, 9, 11],
-                [11, 9, 8],
-                [7, 8, 10],
-                [6, 7, 11],
-                [5, 6, 11],
-                [5, 10, 4],
-                [11, 3, 4],
-                [3, 11, 2],
-                [11, 1, 2],
-            ],
-            dtype="i8",
-        )
-    return vert, triangles
+    vertices = np.array(vertices, dtype=float)
+    return vertices, np.array(faces, dtype=int)
 
 
 def prim_triangularprism():
@@ -1361,4 +1322,76 @@ def prim_triangle():
     """
     vertices = np.array([[-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.0, 0.5, 0.0]])
     triangles = np.array([[0, 1, 2]], dtype="i8")
+    return vertices, triangles
+
+
+def prim_ring(
+    *, inner_radius=0.5, outer_radius=1, radial_segments=1, circumferential_segments=32
+):
+    """Return vertices and triangles for a ring geometry.
+
+    Parameters
+    ----------
+    inner_radius : float, optional
+        The inner radius of the ring (radius of the hole).
+    outer_radius : float, optional
+        The outer radius of the ring.
+    radial_segments : int, optional
+        Number of segments along the radial direction.
+    circumferential_segments : int, optional
+        Number of segments around the circumference.
+
+    Returns
+    -------
+    vertices: ndarray, shape (3, 3)
+        Coordinates of the 3 vertices that compose the triangle.
+    triangles: ndarray, shape (1, 3)
+        Indices of the 1 triangle that composes the geometry.
+
+    Raises
+    ------
+    ValueError
+        If radial_segments is less than 1.
+        If circumferential_segments is less than 3.
+        If inner_radius is not between 0 and outer_radius.
+    """
+    inner_radius = max(0, float(inner_radius))
+    outer_radius = max(inner_radius, float(outer_radius))
+
+    if radial_segments < 1:
+        raise ValueError("radial_segments must be greater than or equal to 1")
+    if circumferential_segments < 3:
+        raise ValueError("circumferential_segments must be greater than or equal to 3")
+    if not (0 <= inner_radius < outer_radius):
+        raise ValueError(
+            "inner_radius must be greater than equal to 0 and less than outer_radius"
+        )
+
+    nr = radial_segments + 1
+    nc = circumferential_segments
+
+    radii = np.linspace(inner_radius, outer_radius, nr, dtype=np.float32)
+    angles = np.linspace(0, 2 * np.pi, nc, endpoint=False, dtype=np.float32)
+
+    rr, aa = np.meshgrid(radii, angles)
+    rr, aa = rr.flatten(), aa.flatten()
+
+    # Convert to Cartesian coordinates (x, y, z=0)
+    x = rr * np.cos(aa)
+    y = rr * np.sin(aa)
+    vertices = np.column_stack([x, y, np.zeros_like(x)])
+
+    triangles = []
+    for i in range(nc):
+        for j in range(radial_segments):
+            v0 = i * nr + j
+            v1 = i * nr + (j + 1)
+            v2 = ((i + 1) % nc) * nr + j
+            v3 = ((i + 1) % nc) * nr + (j + 1)
+
+            triangles.append([v0, v1, v3])
+            triangles.append([v0, v3, v2])
+
+    triangles = np.array(triangles, dtype=np.uint32)
+
     return vertices, triangles

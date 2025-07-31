@@ -1,6 +1,9 @@
 """Module for creating various materials used in 3D rendering."""
 
+import numpy as np
+
 from fury.lib import (
+    ImageBasicMaterial,
     LineArrowMaterial,
     LineMaterial,
     LineSegmentMaterial,
@@ -218,6 +221,71 @@ def _create_line_material(
         raise ValueError(f"Unsupported material type: {material}")
 
 
+def _create_vector_field_material(
+    cross_section,
+    *,
+    visibility=None,
+    material="thin_line",
+    enable_picking=True,
+    opacity=1.0,
+    thickness=1.0,
+    thickness_space="screen",
+    anti_aliasing=True,
+):
+    """
+    Create a line material.
+
+    Parameters
+    ----------
+    cross_section : list or tuple, shape (3,), optional
+        A list or tuple representing the cross section dimensions.
+        If None, the cross section will be ignored and complete field will be shown.
+    visibility : list or tuple, shape (3,), optional
+        A list or tuple representing the visibility in the x, y, and z dimensions.
+        If None, the visibility will be set to (-1, -1, -1) to show the complete field.
+    material : str, optional
+        The type of vector field material to create. Options are 'thin_line' (default),
+        'line', 'arrow'.
+    enable_picking : bool, optional
+        Whether the material should be pickable in a scene.
+    opacity : float, optional
+        The opacity of the material, from 0 (transparent) to 1 (opaque).
+        If RGBA is provided, the final alpha will be:
+        final_alpha = alpha_in_RGBA * opacity.
+    thickness : float, optional
+        The line thickness expressed in logical pixels.
+    thickness_space : str, optional
+        The coordinate space in which the thickness is
+        expressed ('screen', 'world', 'model').
+    anti_aliasing : bool, optional
+        Whether or not the line is anti-aliased in the shader.
+
+    Returns
+    -------
+    LineMaterial
+        A line material object of the specified type with the given properties.
+    """
+
+    opacity = validate_opacity(opacity)
+
+    args = {
+        "pick_write": enable_picking,
+        "opacity": opacity,
+        "thickness": thickness,
+        "thickness_space": thickness_space,
+        "aa": anti_aliasing,
+    }
+
+    if material == "thin_line":
+        return VectorFieldThinLineMaterial(cross_section, visibility=visibility, **args)
+    elif material == "line":
+        return VectorFieldLineMaterial(cross_section, visibility=visibility, **args)
+    elif material == "arrow":
+        return VectorFieldArrowMaterial(cross_section, visibility=visibility, **args)
+    else:
+        raise ValueError(f"Unsupported material type: {material}")
+
+
 def _create_points_material(
     *,
     material="basic",
@@ -364,3 +432,270 @@ def _create_text_material(
         weight_offset=weight_offset,
         aa=aliasing,
     )
+
+
+def _create_image_material(
+    *,
+    clim=None,
+    map=None,
+    gamma=1.0,
+    interpolation="nearest",
+):
+    """
+    Rasterized image material.
+
+    Parameters
+    ----------
+    clim : tuple, optional
+        The contrast limits to scale the data values with.
+    map : Texture or TextureMap, optional
+        The texture map to turn the image values into its final color.
+    gamma : float, optional
+        The gamma correction to apply to the image data.
+        Must be greater than 0.0.
+    interpolation : str, optional
+        The method to interpolate the image data.
+        Either 'nearest' or 'linear'.
+
+    Returns
+    -------
+    ImageMaterial
+        A rasterized image material object with the specified properties.
+    """
+    return ImageBasicMaterial(
+        clim=clim,
+        map=map,
+        gamma=gamma,
+        interpolation=interpolation,
+    )
+
+
+class VectorFieldThinLineMaterial(LineMaterial):
+    """Material for VectorFieldActor.
+
+    Parameters
+    ----------
+    cross_section : {list, tuple, ndarray}
+        A list or tuple  or ndarray representing the cross section dimensions.
+    visibility : {list, tuple, ndarray}, optional
+        A list or tuple  or ndarray representing the visibility in the 3D.
+        If None, the visibility will be set to (-1, -1, -1) to show the complete field.
+    **kwargs : dict
+            Additional keyword arguments for the material.
+    """
+
+    uniform_type = dict(
+        LineThinSegmentMaterial.uniform_type,
+        cross_section="4xf4",  # vec4<i32>
+        visibility="4xi4",  # vec4<i32>
+    )
+
+    def __init__(self, cross_section, *, visibility=None, **kwargs):
+        """Initialize the VectorFieldMaterial.
+
+        Parameters
+        ----------
+        cross_section : {list, tuple, ndarray}
+            A list or tuple  or ndarray representing the cross section dimensions.
+        visibility : {list, tuple, ndarray}, optional
+            A list or tuple  or ndarray representing the visibility in the 3D.
+            If None, the visibility will be set to (-1, -1, -1) to show the complete
+            field.
+        **kwargs : dict
+            Additional keyword arguments for the material.
+        """
+        super().__init__(color_mode="vertex", **kwargs)
+        self.cross_section = cross_section
+        self.visibility = visibility
+
+    @property
+    def visibility(self):
+        """Get the visibility of the vector field in each dimension.
+
+        Returns
+        -------
+        list
+            A list representing the visibility in the x, y, and z dimensions.
+        """
+        vis = self.uniform_buffer.data["visibility"][:3]
+        if all(vis == (-1, -1, -1)):
+            return None
+        return [bool(i) for i in vis]
+
+    @visibility.setter
+    def visibility(self, visibility):
+        """Set the visibility of the vector field in each dimension.
+
+        Parameters
+        ----------
+        visibility : list or tuple
+            A list or tuple representing the visibility in the x, y, and z dimensions.
+        """
+        if visibility is None:
+            self.uniform_buffer.data["visibility"] = np.asarray(
+                [-1, -1, -1, 0], dtype=np.int32
+            )
+        else:
+            if len(visibility) != 3:
+                raise ValueError("visibility must have exactly 3 dimensions.")
+            if not all(
+                isinstance(i, bool)
+                or (hasattr(i, "item") and isinstance(i.item(), bool))
+                for i in visibility
+            ):
+                raise ValueError("visibility must contain only booleans.")
+
+            self.uniform_buffer.data["visibility"] = np.asarray(
+                [*visibility, 0], dtype=np.int32
+            )
+        self.uniform_buffer.update_full()
+
+    @property
+    def cross_section(self):
+        """Get the cross section of the vector field.
+
+        Returns
+        -------
+        list
+            A list representing the cross section dimensions.
+        """
+        return self.uniform_buffer.data["cross_section"][:3]
+
+    @cross_section.setter
+    def cross_section(self, cross_section):
+        """Set the cross section of the vector field.
+
+        Parameters
+        ----------
+        cross_section : list or tuple
+            A list or tuple representing the cross section dimensions.
+        """
+        if len(cross_section) != 3:
+            raise ValueError("cross_section must have exactly 3 dimensions.")
+
+        self.uniform_buffer.data["cross_section"] = np.asarray(
+            [*cross_section, 0], dtype=np.int32
+        )
+        self.uniform_buffer.update_full()
+
+
+class VectorFieldLineMaterial(VectorFieldThinLineMaterial):
+    """Material for VectorFieldActor.
+
+    This class provides a way to distinguish the usage of right shader for
+    creating a vector field.
+    """
+
+
+class VectorFieldArrowMaterial(VectorFieldThinLineMaterial):
+    """Material for VectorFieldActor.
+
+    This class provides a way to distinguish the usage of right shader for
+    creating a vector field.
+    """
+
+
+class SphGlyphMaterial(MeshPhongMaterial):
+    """Initialize the Spherical Glyph Material.
+
+    Parameters
+    ----------
+    l_max : int, optional
+        The maximum spherical harmonic degree.
+    scale : int, optional
+        The scale factor.
+    shininess : int, optional
+        The shininess factor.
+    emissive : str, optional
+        The emissive color.
+    specular : str, optional
+        The specular color.
+    **kwargs : dict
+            Additional keyword arguments for the material.
+    """
+
+    uniform_type = dict(
+        MeshPhongMaterial.uniform_type,
+        l_max="i4",
+        scale="f4",
+    )
+
+    def __init__(
+        self,
+        l_max=4,
+        scale=2,
+        shininess=30,
+        emissive="#000",
+        specular="#494949",
+        **kwargs,
+    ):
+        """Initialize the Spherical Glyph Material.
+
+        Parameters
+        ----------
+        l_max : int, optional
+            The maximum spherical harmonic degree.
+        scale : int, optional
+            The scale factor.
+        shininess : int, optional
+            The shininess factor.
+        emissive : str, optional
+            The emissive color.
+        specular : str, optional
+            The specular color.
+        **kwargs : dict
+            Additional keyword arguments for the material.
+        """
+        super().__init__(shininess, emissive, specular, **kwargs)
+        self.l_max = l_max
+        self.scale = scale
+
+    @property
+    def l_max(self):
+        """Get the maximum spherical harmonic degree.
+
+        Returns
+        -------
+        int
+            The maximum spherical harmonic degree.
+        """
+        return self.uniform_buffer.data["l_max"]
+
+    @l_max.setter
+    def l_max(self, value):
+        """Set the maximum spherical harmonic degree.
+
+        Parameters
+        ----------
+        value : int
+            The maximum spherical harmonic degree.
+        """
+        if not isinstance(value, int):
+            raise ValueError("l_max must be an integer.")
+        self.uniform_buffer.data["l_max"] = value
+        self.uniform_buffer.update_full()
+
+    @property
+    def scale(self):
+        """Get the scale factor.
+
+        Returns
+        -------
+        float
+            The scale factor.
+        """
+        return self.uniform_buffer.data["scale"]
+
+    @scale.setter
+    def scale(self, value):
+        """Set the scale factor.
+
+        Parameters
+        ----------
+        value : float
+            The scale factor.
+        """
+        if not isinstance(value, (int, float)):
+            raise ValueError("scale must be a number.")
+        self.uniform_buffer.data["scale"] = value
+        self.uniform_buffer.update_full()

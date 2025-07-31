@@ -2,7 +2,9 @@
 
 from typing import TypeAlias
 
+import jinja2
 import pygfx as gfx
+import wgpu
 from wgpu.gui.auto import WgpuCanvas, run
 from wgpu.gui.offscreen import WgpuCanvas as OffscreenWgpuCanvas
 
@@ -42,9 +44,13 @@ if have_py_qt5:
     from PyQt5 import QtWidgets
 
 Texture = gfx.Texture
+TextureMap = gfx.TextureMap
 VolumeSliceMaterial = gfx.VolumeSliceMaterial
 Group = gfx.Group
+AffineTransform = gfx.objects._base.AffineTransform
+RecursiveTransform = gfx.objects._base.RecursiveTransform
 Volume = gfx.Volume
+WorldObject = gfx.WorldObject
 AmbientLight = gfx.AmbientLight
 Background = gfx.Background
 BackgroundSkyboxMaterial = gfx.BackgroundSkyboxMaterial
@@ -56,18 +62,23 @@ Scene: TypeAlias = gfx.Scene
 Viewport: TypeAlias = gfx.Viewport
 
 Geometry = gfx.Geometry
+Material = gfx.Material
 Mesh = gfx.Mesh
 Points = gfx.Points
 Line = gfx.Line
+Text = gfx.Text
+Image = gfx.Image
+TextureMap = gfx.TextureMap
 
 MeshBasicMaterial = gfx.MeshBasicMaterial
 MeshPhongMaterial = gfx.MeshPhongMaterial
+MeshStandardMaterial = gfx.MeshStandardMaterial
 PointsMaterial = gfx.PointsMaterial
 PointsGaussianBlobMaterial = gfx.PointsGaussianBlobMaterial
 PointsMarkerMaterial = gfx.PointsMarkerMaterial
 
 TextMaterial = gfx.TextMaterial
-Text = gfx.Text
+ImageBasicMaterial = gfx.ImageBasicMaterial
 LineMaterial = gfx.LineMaterial
 LineArrowMaterial = gfx.LineArrowMaterial
 LineThinMaterial = gfx.LineThinMaterial
@@ -82,6 +93,22 @@ Renderer = gfx.WgpuRenderer
 run = run
 Canvas = WgpuCanvas
 OffscreenCanvas = OffscreenWgpuCanvas
+BaseShader = gfx.renderers.wgpu.BaseShader
+MeshPhongShader = gfx.renderers.wgpu.shaders.meshshader.MeshPhongShader
+MeshStandardShader = gfx.renderers.wgpu.shaders.meshshader.MeshStandardShader
+MeshShader = gfx.renderers.wgpu.shaders.meshshader.MeshShader
+LineShader = gfx.renderers.wgpu.shaders.lineshader.LineShader
+LineArrowShader = gfx.renderers.wgpu.shaders.lineshader.LineArrowShader
+ThinLineSegmentShader = gfx.renderers.wgpu.shaders.lineshader.ThinLineSegmentShader
+PrimitiveTopology = wgpu.PrimitiveTopology
+CullMode = wgpu.CullMode
+Binding = gfx.renderers.wgpu.Binding
+RenderMask = gfx.renderers.wgpu.RenderMask
+Buffer = gfx.Buffer
+register_wgpu_render_function = gfx.renderers.wgpu.register_wgpu_render_function
+load_wgsl = gfx.renderers.wgpu.load_wgsl
+register_wgsl_loader = gfx.renderers.wgpu.shader.register_wgsl_loader
+WorldObject = gfx.WorldObject
 if have_jupyter_rfb:
     JupyterCanvas = JupyterWgpuCanvas
 else:
@@ -92,3 +119,5 @@ else:
     QtCanvas = PySide6
     QtWidgets = PySide6
     get_app = PySide6
+
+register_wgsl_loader("fury", jinja2.PackageLoader("fury.wgsl", "."))

@@ -5,8 +5,7 @@
 # # with better autocompletion and documentation in code editors.
 
 __all__ = [
-    #     "actor",
-    #     "actors",
+    "actor",
     "animation",
     "colormap",
     # "convert",
@@ -24,7 +23,7 @@ __all__ = [
     #     "pick",
     "pkg_info",
     "primitive",
-    #     "shaders",
+    "shader",
     #     "stream",
     "testing",
     "transform",
@@ -38,7 +37,7 @@ __all__ = [
 # #  the explicit definition of `__all__` will enable type inference for engines.
 
 from . import (
-    #     actors,
+    actor,
     animation,
     colormap,
     #     convert,
@@ -49,11 +48,10 @@ from . import (
     #     interactor,
     io,
     lib,
-    #     layout,
     optpkg,
     pkg_info,
     primitive,
-    #     shaders,
+    shader,
     #     stream,
     testing,
     transform,
@@ -314,17 +312,6 @@ from .primitive import (
     repeat_primitive_function as repeat_primitive_function,
 )
 
-# from .shaders import (
-#     add_shader_callback as add_shader_callback,
-#     attribute_to_actor as attribute_to_actor,
-#     compose_shader as compose_shader,
-#     import_fury_shader as import_fury_shader,
-#     load as load,
-#     load_shader as load_shader,
-#     replace_shader_in_actor as replace_shader_in_actor,
-#     shader_apply_effects as shader_apply_effects,
-#     shader_to_actor as shader_to_actor,
-# )
 # from .stream import (
 #     ArrayCircularQueue as ArrayCircularQueue,
 #     FuryStreamClient as FuryStreamClient,
